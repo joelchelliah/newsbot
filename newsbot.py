@@ -2,34 +2,31 @@ import requests
 import datetime
 from email.message import EmailMessage
 import smtplib
-import os
 import openai
 from newspaper import Article
 import textwrap
-from dotenv import load_dotenv
-
-load_dotenv()
-client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+from config import Config
+from logger import setup_logger
 
 
-
-def summarize_article(url):
+def summarize_article(config, url):
     article = Article(url)
     article.download()
     article.parse()
 
+    client = openai.OpenAI(api_key=config.openai_api_key)
     response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model=config.openai_model,
         messages=[
             {"role": "system", "content": "Summarize the following article in concise and informative language, in 5-10 lines."},
             {"role": "user", "content": article.text}
         ],
-        max_tokens=300,
-        temperature=0.4,
+        max_tokens=config.max_tokens,
+        temperature=config.temperature,
     )
     return response.choices[0].message.content.strip()
 
-def fetch_top_news(api_key):
+def fetch_top_news(config):
     today = datetime.date.today()
     yesterday = today - datetime.timedelta(days=1)
     url = (
@@ -39,38 +36,45 @@ def fetch_top_news(api_key):
         f"language=en&"
         f"sortBy=popularity"
     )
-    response = requests.get(url, headers={"Authorization": api_key})
+    response = requests.get(url, headers={"Authorization": config.news_api_key})
     articles = response.json().get("articles", [])
 
     return articles[0] if articles else None
 
-def send_email(subject, body, body_html, to_email, from_email, smtp_password):
+def send_email(subject, body, body_html, config):
     msg = EmailMessage()
     msg["Subject"] = subject
-    msg["From"] = from_email
-    msg["To"] = to_email
+    msg["From"] = config.from_email
+    msg["To"] = config.to_email
     msg.set_content(body)
     msg.add_alternative(body_html, subtype="html")
 
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-        smtp.login(from_email, smtp_password)
+    with smtplib.SMTP_SSL(config.smtp_server, config.smtp_port) as smtp:
+        smtp.login(config.from_email, config.smtp_password)
         smtp.send_message(msg)
 
 def main():
-    news_api_key = os.getenv("NEWS_API_KEY")
-    smtp_pass = os.getenv("SMTP_PASS")
-    from_email = os.getenv("FROM_EMAIL")
-    to_email = os.getenv("TO_EMAIL")
+    logger = setup_logger()
+    logger.info("Starting NewsBot application")
 
-    article = fetch_top_news(news_api_key)
+    config = Config()
+    if not config.validate():
+        logger.error("Missing required environment variables")
+        return
+
+    logger.info("Fetching top news article")
+    article = fetch_top_news(config)
     if article:
+        logger.info(f"Found article: {article['title']}")
         subject = f"📰 NEWSBOT: {article['title']}"
+        summary = summarize_article(config, article['url'])
+
         body = textwrap.dedent(f"""
             {article['title']}
 
             {article['description']}
 
-            {summarize_article(article['url'])}
+            {summary}
 
             {article['url']}
         """)
@@ -79,15 +83,17 @@ def main():
             <body>
                 <h2>{article['title']}</h2>
                 <p><strong>Description:</strong> {article['description']}</p>
-                <p><strong>Summary:</strong> {summarize_article(article['url'])}</p>
+                <p><strong>Summary:</strong> {summary}</p>
                 <p>📰 <a href="{article['url']}">Read the full article</a></p>
             </body>
             </html>
         """
 
-        send_email(subject, body, body_html, to_email, from_email, smtp_pass)
+        logger.info("Sending email")
+        send_email(subject, body, body_html, config)
+        logger.info("News email sent successfully!")
     else:
-        print("No articles found.")
+        logger.warning("No articles found")
 
 if __name__ == "__main__":
     main()
