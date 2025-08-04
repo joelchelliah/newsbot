@@ -26,7 +26,7 @@ def summarize_article(config, url):
     )
     return response.choices[0].message.content.strip()
 
-def fetch_top_news(config):
+def fetch_top_news(config, logger):
     today = datetime.date.today()
     yesterday = today - datetime.timedelta(days=1)
     url = (
@@ -36,10 +36,15 @@ def fetch_top_news(config):
         f"language=en&"
         f"sortBy=popularity"
     )
-    response = requests.get(url, headers={"Authorization": config.news_api_key})
-    articles = response.json().get("articles", [])
+    try:
+        response = requests.get(url, headers={"Authorization": config.news_api_key}, timeout=30)
+        response.raise_for_status()
+        articles = response.json().get("articles", [])
 
-    return articles[0] if articles else None
+        return articles[0] if articles else None
+    except Exception as e:
+        logger.error(f"Failed to fetch news: {e}")
+        return None
 
 def send_email(subject, body, body_html, config):
     msg = EmailMessage()
@@ -63,7 +68,8 @@ def main():
         return
 
     logger.info("Fetching top news article")
-    article = fetch_top_news(config)
+    article = fetch_top_news(config, logger)
+
     if article:
         logger.info(f"Found article: {article['title']}")
         subject = f"📰 NEWSBOT: {article['title']}"
