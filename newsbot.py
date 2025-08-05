@@ -30,7 +30,7 @@ def summarize_article(config, url):
     )
     return response.choices[0].message.content.strip()
 
-def fetch_top_news(config, logger):
+def fetch_top_news_articles(config, logger):
     today = datetime.date.today()
     yesterday = today - datetime.timedelta(days=1)
     url = (
@@ -45,10 +45,59 @@ def fetch_top_news(config, logger):
         response.raise_for_status()
         articles = response.json().get("articles", [])
 
-        return articles[0] if articles else None
+        return articles if articles else None
     except Exception as e:
         logger.error(f"Failed to fetch news: {e}")
         return None
+
+def select_best_article(config, logger, articles):
+    client = openai.OpenAI(api_key=config.openai_api_key)
+    article_texts = [f"Title: {a['title']}\nDescription: {a['description']}" for a in articles[:5]]
+
+    logger.info(f"Selecting the best article from the top {len(article_texts)} articles")
+
+    response = client.chat.completions.create(
+        model=config.openai_model,
+        messages=[
+            {"role": "system", "content": "Select the most interesting and important article from the list. Consider quality, impact and y personal preferences: Only positive or funny articles."},
+            {"role": "user", "content": "\n\n".join(article_texts)}
+        ],
+        functions=[{
+            "name": "select_article",
+            "description": "Select the best article from the list",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "index": {
+                        "type": "integer",
+                        "description": "Index of the selected article (0-based)",
+                        "minimum": 0,
+                        "maximum": len(articles) - 1
+                    }
+                },
+                "required": ["index"]
+            }
+        }],
+        function_call={"name": "select_article"}
+    )
+
+    # Extract the function call result
+    function_call = response.choices[0].message.function_call
+    if function_call and function_call.name == "select_article":
+        import json
+        args = json.loads(function_call.arguments)
+        index = args.get("index", 0)
+
+        # Safety check
+        if 0 <= index < len(articles):
+            logger.info(f"Selected article index: {index}")
+            return articles[index]
+        else:
+            logger.warning(f"AI returned invalid index {index}, using first article")
+            return articles[0]
+    else:
+        logger.warning("AI didn't return structured response, using first article")
+        return articles[0]
 
 def send_email(subject, body, body_html, config):
     msg = EmailMessage()
@@ -72,7 +121,8 @@ def main():
         return
 
     logger.info("Fetching top news article")
-    article = fetch_top_news(config, logger)
+    articles = fetch_top_news_articles(config, logger)
+    article = select_best_article(config, logger, articles)
 
     if article:
         logger.info(f"Found article: {article['title']}")
