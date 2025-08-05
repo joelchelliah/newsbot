@@ -5,3 +5,4 @@ openai>=1.0.0
 lxml>=5.1.0
 lxml_html_clean>=0.1.1
 flask
+gunicorn

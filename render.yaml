@@ -3,7 +3,7 @@ services:
     name: newsbot
     runtime: python
     buildCommand: pip install -r requirements.txt
-    startCommand: python newsbot.py
+    startCommand: gunicorn newsbot:app
     envVars:
       - key: OPENAI_API_KEY
         sync: false
