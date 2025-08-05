@@ -7,6 +7,10 @@ from newspaper import Article
 import textwrap
 from config import Config
 from logger import setup_logger
+from flask import Flask, jsonify
+import os
+
+app = Flask(__name__)
 
 
 def summarize_article(config, url):
@@ -98,8 +102,25 @@ def main():
         logger.info("Sending email")
         send_email(subject, body, body_html, config)
         logger.info("News email sent successfully!")
+        return True
     else:
         logger.warning("No articles found")
+        return False
+
+@app.route('/')
+def health_check():
+    return jsonify({"status": "healthy", "message": "NewsBot is running"})
+
+@app.route('/trigger', methods=['POST'])
+def trigger_newsbot():
+    try:
+        success = main()
+        if success:
+            return jsonify({"status": "success", "message": "News email sent successfully!"})
+        else:
+            return jsonify({"status": "warning", "message": "No articles found"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == "__main__":
-    main()
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)))
