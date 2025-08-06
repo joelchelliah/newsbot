@@ -1,5 +1,3 @@
-import requests
-import datetime
 from email.message import EmailMessage
 import smtplib
 import textwrap
@@ -7,30 +5,10 @@ from config import Config
 from logger import get_logger
 from flask import Flask, jsonify
 import os
-from ai_service import AIService
+from services import AIService, NewsApiService
 
 app = Flask(__name__)
 
-
-def fetch_top_news_articles(config, logger):
-    today = datetime.date.today()
-    yesterday = today - datetime.timedelta(days=1)
-    url = (
-        f"https://newsapi.org/v2/everything?"
-        f"q=world&"
-        f"from={yesterday}&to={today}&"
-        f"language=en&"
-        f"sortBy=popularity"
-    )
-    try:
-        response = requests.get(url, headers={"Authorization": config.news_api_key}, timeout=30)
-        response.raise_for_status()
-        articles = response.json().get("articles", [])
-
-        return articles if articles else None
-    except Exception as e:
-        logger.error(f"Failed to fetch news: {e}")
-        return None
 
 def send_email(subject, body, body_html, config):
     msg = EmailMessage()
@@ -54,10 +32,14 @@ def main():
         return
 
     ai_service = AIService(config)
+    news_service = NewsApiService(config)
+
+    # TODO: Make this configurable by AI?
+    preferences = "Only positive or funny articles. Cats. Gaming. AI."
 
     logger.info("Fetching top news article")
-    articles = fetch_top_news_articles(config, logger)
-    article = ai_service.select_best_article(articles, "Only positive or funny articles.")
+    articles = news_service.fetch_top_news_articles()
+    article = ai_service.select_best_article(articles, preferences)
 
     if article:
         logger.info(f"Found article: {article['title']}")

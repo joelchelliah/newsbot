@@ -12,10 +12,10 @@ class AIService:
         self.logger = get_logger()
 
     def select_best_article(self, articles: list, preferences: str) -> dict:
-        if not articles:
+        if not articles or len(articles) == 0:
             return None
 
-        article_texts = [f"Title: {a['title']}\nDescription: {a['description']}" for a in articles[:5]]
+        article_texts = [f"Title: {a['title']}\nDescription: {a['description']}" for a in articles[:10]]
         self.logger.info(f"Selecting the best article from the top {len(article_texts)} articles")
 
         response = self.client.chat.completions.create(
