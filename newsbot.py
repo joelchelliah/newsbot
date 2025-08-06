@@ -91,4 +91,8 @@ def trigger_newsbot():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == "__main__":
+    # Suppress Flask development server warning in production
+    if os.environ.get('RENDER'):
+        import logging
+        logging.getLogger('werkzeug').setLevel(logging.ERROR)
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 3000)))
