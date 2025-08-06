@@ -14,8 +14,6 @@ class Config:
     smtp_server: str = "smtp.gmail.com"
     smtp_port: int = 465
     openai_model: str = "gpt-3.5-turbo"
-    max_tokens: int = 300
-    temperature: float = 0.4
 
     def validate(self) -> bool:
         required_fields = [
