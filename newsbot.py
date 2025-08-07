@@ -5,52 +5,10 @@ from config import Config
 from logger import get_logger
 from flask import Flask, jsonify, request
 import os
-from services import AIService, NewsApiService, PreferencesService
-import uuid
-import datetime
+from services import AIService, NewsApiService
+from stores import SummariesStore, PreferencesStore
 
 app = Flask(__name__)
-
-# In-memory storage for summaries (since Render free tier doesn't have persistent disk)
-summary_storage = {}
-
-
-def store_summary(summary: str) -> str:
-    summary_id = str(uuid.uuid4())
-    summary_data = {
-        "summary": summary,
-        "timestamp": str(datetime.datetime.now())
-    }
-
-    summary_storage[summary_id] = summary_data
-
-    return summary_id
-
-
-def get_summary(summary_id: str) -> str:
-    try:
-        data = summary_storage.get(summary_id, {})
-        return data.get('summary', '')
-    except KeyError:
-        return ''
-
-
-def cleanup_old_summaries():
-    cutoff_time = datetime.datetime.now() - datetime.timedelta(hours=48)
-
-    expired_keys = []
-    for summary_id, data in summary_storage.items():
-        try:
-            timestamp_str = data.get('timestamp', '')
-            if timestamp_str:
-                file_time = datetime.datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-                if file_time < cutoff_time:
-                    expired_keys.append(summary_id)
-        except (ValueError, TypeError):
-            expired_keys.append(summary_id)
-
-    for key in expired_keys:
-        del summary_storage[key]
 
 
 def send_email(subject, body, body_html, config):
@@ -75,13 +33,14 @@ def main():
         return
 
     logger.info("🧹  Cleaning up old summaries")
-    cleanup_old_summaries()
+    summaries_store = SummariesStore()
+    summaries_store.cleanup_old_summaries()
 
     ai_service = AIService(config)
     news_service = NewsApiService(config)
-    preferences_service = PreferencesService(config)
+    preferences_store = PreferencesStore(config)
 
-    preferences = preferences_service.get_preferences()
+    preferences = preferences_store.get_preferences()
 
     logger.info("📰  Fetching top news article...")
     articles = news_service.fetch_top_news_articles()
@@ -93,7 +52,8 @@ def main():
         summary = ai_service.summarize_article(article['url'])
         subject = "📰 " + ai_service.generate_subject_line(article['title'], summary)
 
-        summary_id = store_summary(summary)
+        summaries_store = SummariesStore()
+        summary_id = summaries_store.store_summary(summary)
         logger.info(f"Stored summary with ID: {summary_id}")
 
         body = textwrap.dedent(f"""
@@ -185,14 +145,14 @@ def trigger_newsbot():
 
 @app.route('/preferences', methods=['GET'])
 def get_preferences():
-    preferences_service = PreferencesService(Config())
+    preferences_store = PreferencesStore(Config())
 
-    return preferences_service.get_preferences()
+    return preferences_store.get_preferences()
 
 @app.route('/preferences/history', methods=['GET'])
 def get_preferences_history():
-    preferences_service = PreferencesService(Config())
-    history = preferences_service.get_history()
+    preferences_store = PreferencesStore(Config())
+    history = preferences_store.get_history()
 
     return jsonify({"count": len(history), "history": history})
 
@@ -202,8 +162,8 @@ def update_preferences():
         data = request.get_json()
         new_preferences = data.get('preferences', '')
 
-        preferences_service = PreferencesService(Config())
-        success = preferences_service.update_preferences(new_preferences)
+        preferences_store = PreferencesStore(Config())
+        success = preferences_store.update_preferences(new_preferences)
 
         if success:
             return jsonify({
@@ -222,21 +182,22 @@ def submit_rating(rating, summary_id):
         if rating < 1 or rating > 5:
             return jsonify({"status": "error", "message": "Rating must be between 1 and 5"}), 400
 
-        article_summary = get_summary(summary_id)
+        summaries_store = SummariesStore()
+        article_summary = summaries_store.get_summary(summary_id)
         if not article_summary:
             return jsonify({"status": "error", "message": "Summary not found or expired"}), 404
 
         config = Config()
         ai_service = AIService(config)
-        preferences_service = PreferencesService(config)
+        preferences_store = PreferencesStore(config)
 
-        current_preferences = preferences_service.get_preferences()
+        current_preferences = preferences_store.get_preferences()
         updated_preferences = ai_service.update_preferences_from_rating(
             current_preferences, rating, article_summary
         )
 
         if updated_preferences:
-            success = preferences_service.update_preferences(updated_preferences)
+            success = preferences_store.update_preferences(updated_preferences)
             if success:
                 return f"""
                 <html>
