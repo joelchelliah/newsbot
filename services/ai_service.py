@@ -71,6 +71,7 @@ class AIService:
         return self._parse_response(response, "generate_subject_line")
 
     def summarize_article(self, url: str) -> str:
+        self.logger.info(f"Summarizing article")
         article = Article(url)
         article.download()
         article.parse()
@@ -85,6 +86,45 @@ class AIService:
             temperature=0.3,
         )
         return self._parse_response(response, "summarize_article")
+
+    def update_preferences_from_rating(self, current_preferences: str, rating: int, article_summary: str) -> str:
+        try:
+            self.logger.info(f"Updating preferences based on {rating}-star rating")
+
+            response = self.client.chat.completions.create(
+                model=self.config.openai_model,
+                messages=[
+                    {"role": "system", "content": f"""You are an AI that helps update user preferences for news articles.
+
+IMPORTANT: You must PRESERVE all existing preferences and only ADD or MODIFY based on the rating.
+
+Current user preferences: {current_preferences}
+
+Based on the provided rating and article summary, update the user's preferences to better reflect what they like.
+- If they gave a high rating (4-5 stars), ADD similar topics, ideas, or writing styles to existing preferences
+- If they gave a low rating (1-2 stars), ADD negative preferences to avoid similar content
+- If they gave a neutral rating (3 stars), make minor adjustments or clarifications
+- ALWAYS keep ALL existing preferences and only ADD new ones or MODIFY relevant existing ones
+- Keep the preferences concise, actionable, and keyword-based
+- Return the COMPLETE updated preferences including all original preferences plus any additions/modifications"""},
+                    {"role": "user", "content": f"Please update my preferences based on my {rating}-star rating of this article. The article summary is: {article_summary}. Remember to keep ALL my existing preferences and only add or modify based on this specific article."}
+                ],
+                max_tokens=300,
+                temperature=0.3,
+            )
+
+            updated_preferences = self._parse_response(response, "update_preferences_from_rating")
+
+            if updated_preferences and updated_preferences.strip():
+                self.logger.info(f"Successfully updated preferences based on {rating}-star rating: {updated_preferences}")
+                return updated_preferences.strip()
+            else:
+                self.logger.warning("Failed to get updated preferences from AI")
+                return current_preferences
+
+        except Exception as e:
+            self.logger.error(f"Error updating preferences from rating: {e}")
+            return current_preferences
 
     def _parse_response(self, response, function_name: str = "unknown") -> str:
         try:
