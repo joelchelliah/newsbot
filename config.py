@@ -14,6 +14,7 @@ class Config:
     smtp_server: str = "smtp.gmail.com"
     smtp_port: int = 465
     openai_model: str = "gpt-3.5-turbo"
+    preferences: str = os.getenv("NEWSBOT_DEFAULT_PREFERENCES", "")
 
     def validate(self) -> bool:
         required_fields = [

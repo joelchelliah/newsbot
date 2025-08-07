@@ -16,7 +16,7 @@ class AIService:
             return None
 
         article_texts = [f"Title: {a['title']}\nDescription: {a['description']}" for a in articles[:10]]
-        self.logger.info(f"Selecting the best article from the top {len(article_texts)} articles")
+        self.logger.info(f"Selecting the best article from the top {len(article_texts)} articles, based on preferences: {preferences}")
 
         response = self.client.chat.completions.create(
             model=self.config.openai_model,

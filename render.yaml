@@ -4,6 +4,10 @@ services:
     runtime: python
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn newsbot:app
+    disk:
+      name: newsbot-disk
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1
     envVars:
       - key: OPENAI_API_KEY
         sync: false
@@ -14,4 +18,6 @@ services:
       - key: TO_EMAIL
         sync: false
       - key: SMTP_PASS
+        sync: false
+      - key: NEWSBOT_DEFAULT_PREFERENCES
         sync: false

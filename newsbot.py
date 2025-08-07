@@ -3,9 +3,9 @@ import smtplib
 import textwrap
 from config import Config
 from logger import get_logger
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 import os
-from services import AIService, NewsApiService
+from services import AIService, NewsApiService, PreferencesService
 
 app = Flask(__name__)
 
@@ -33,9 +33,9 @@ def main():
 
     ai_service = AIService(config)
     news_service = NewsApiService(config)
+    preferences_service = PreferencesService(config)
 
-    # TODO: Make this configurable by AI?
-    preferences = "Only positive or funny articles. Cats. Gaming. AI."
+    preferences = preferences_service.get_preferences()
 
     logger.info("Fetching top news article")
     articles = news_service.fetch_top_news_articles()
@@ -45,7 +45,7 @@ def main():
         logger.info(f"Found article: {article['title']}")
 
         summary = ai_service.summarize_article(article['url'])
-        subject = ai_service.generate_subject_line(article['title'], summary)
+        subject = "📰 " + ai_service.generate_subject_line(article['title'], summary)
 
         body = textwrap.dedent(f"""
             {article['title']}
@@ -87,6 +87,39 @@ def trigger_newsbot():
             return jsonify({"status": "success", "message": "News email sent successfully!"})
         else:
             return jsonify({"status": "warning", "message": "No articles found"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route('/preferences', methods=['GET'])
+def get_preferences():
+    preferences_service = PreferencesService(Config())
+
+    return preferences_service.get_preferences()
+
+@app.route('/preferences/history', methods=['GET'])
+def get_preferences_history():
+    preferences_service = PreferencesService(Config())
+    history = preferences_service.get_history()
+
+    return jsonify({"count": len(history), "history": history})
+
+@app.route('/preferences', methods=['POST'])
+def update_preferences():
+    try:
+        data = request.get_json()
+        new_preferences = data.get('preferences', '')
+
+        preferences_service = PreferencesService(Config())
+        success = preferences_service.update_preferences(new_preferences)
+
+        if success:
+            return jsonify({
+                "status": "success",
+                "message": "Preferences updated and saved",
+                "preferences": new_preferences
+            })
+        else:
+            return jsonify({"status": "error", "message": "Failed to save preferences"}), 500
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
