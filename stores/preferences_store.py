@@ -1,10 +1,10 @@
 from config import Config
 from logger import get_logger
+from supabase import create_client, Client
+
 
 class PreferencesStore:
     _instance = None
-    _preferences = None
-    _history = None
     _initialized = False
 
     def __new__(cls, *args, **kwargs):
@@ -17,32 +17,58 @@ class PreferencesStore:
             self.config = config
             self.logger = get_logger()
 
-            PreferencesStore._preferences = config.preferences
-            PreferencesStore._history = []
-            PreferencesStore._initialized = True
+            self.supabase: Client = create_client(
+                config.supabase_url,
+                config.supabase_key
+            )
 
-            self.logger.info("Using in-memory preferences storage (singleton)")
+            PreferencesStore._initialized = True
+            self.logger.info("✅  PreferencesStore initialized")
 
     def get_preferences(self) -> str:
-        self.logger.info("Getting preferences from memory")
-        return PreferencesStore._preferences
+        try:
+            response = self.supabase.table('preferences').select('preferences').eq('is_latest', True).execute()
+
+            if response.data and len(response.data) > 0:
+                return response.data[0]['preferences']
+            else:
+                self.logger.warning("No preferences found in Supabase, using config default")
+                return self.config.preferences
+
+        except Exception as e:
+            self.logger.error(f"Failed to get preferences from Supabase: {e}")
+            return self.config.preferences
 
     def get_history(self) -> list:
-        self.logger.info("Getting history from memory")
-        return PreferencesStore._history
+        try:
+            response = self.supabase.table('preferences').select('preferences, version, created_at').order('version', desc=True).limit(20).execute()
+
+            if response.data:
+                return [item['preferences'] for item in response.data]
+            else:
+                return []
+
+        except Exception as e:
+            self.logger.error(f"Failed to get preferences history from Supabase: {e}")
+            return []
 
     def update_preferences(self, new_preferences: str) -> bool:
         try:
-            self.logger.info("Saving preferences to memory")
+            response = self.supabase.table('preferences').select('version').order('version', desc=True).limit(1).execute()
+            current_version = 1
+            if response.data and len(response.data) > 0:
+                current_version = response.data[0]['version'] + 1
 
-            current_preferences = PreferencesStore._preferences
+            self.supabase.table('preferences').update({'is_latest': False}).eq('is_latest', True).execute()
+            self.supabase.table('preferences').insert({
+                'preferences': new_preferences,
+                'version': current_version,
+                'is_latest': True
+            }).execute()
 
-            if current_preferences != new_preferences and (not PreferencesStore._history or current_preferences != PreferencesStore._history[0]):
-                PreferencesStore._history.insert(0, current_preferences)
-                PreferencesStore._history = PreferencesStore._history[:20] # Max 20 entries
-
-            PreferencesStore._preferences = new_preferences
+            self.logger.info(f"Updated preferences. Latest version: {current_version}")
             return True
+
         except Exception as e:
-            self.logger.error(f"Failed to save preferences to memory: {e}")
+            self.logger.error(f"Failed to save preferences to Supabase: {e}")
             return False
