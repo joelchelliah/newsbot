@@ -42,7 +42,7 @@ class SummariesStore:
             return summary_id
 
         except Exception as e:
-            self.logger.error(f"Failed to store summary in Supabase: {e}")
+            self.logger.error(f"❌  Failed to store summary in Supabase: {e}")
             return ""
 
     def get_summary(self, summary_id: str) -> str:
@@ -56,7 +56,7 @@ class SummariesStore:
                 return ""
 
         except Exception as e:
-            self.logger.error(f"Failed to get summary from Supabase: {e}")
+            self.logger.error(f"❌  Failed to get summary from Supabase: {e}")
             return ''
 
     def cleanup_old_summaries(self):
@@ -66,8 +66,6 @@ class SummariesStore:
 
             if response.data:
                 self.logger.info(f"🧹  Cleaned up {len(response.data)} expired summaries")
-            else:
-                self.logger.info("No expired summaries to clean up")
 
         except Exception as e:
-            self.logger.error(f"Failed to cleanup old summaries: {e}")
+            self.logger.error(f"❌  Failed to cleanup old summaries: {e}")

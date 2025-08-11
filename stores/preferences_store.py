@@ -36,7 +36,7 @@ class PreferencesStore:
                 return self.config.preferences
 
         except Exception as e:
-            self.logger.error(f"Failed to get preferences from Supabase: {e}")
+            self.logger.error(f"❌  Failed to get preferences from Supabase: {e}")
             return self.config.preferences
 
     def get_history(self) -> list:
@@ -49,7 +49,7 @@ class PreferencesStore:
                 return []
 
         except Exception as e:
-            self.logger.error(f"Failed to get preferences history from Supabase: {e}")
+            self.logger.error(f"❌  Failed to get preferences history from Supabase: {e}")
             return []
 
     def update_preferences(self, new_preferences: str) -> bool:
@@ -70,5 +70,5 @@ class PreferencesStore:
             return True
 
         except Exception as e:
-            self.logger.error(f"Failed to save preferences to Supabase: {e}")
+            self.logger.error(f"❌  Failed to save preferences to Supabase: {e}")
             return False

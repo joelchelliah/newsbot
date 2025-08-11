@@ -33,7 +33,7 @@ def main():
         return
 
     logger.info("🧹  Cleaning up old summaries")
-    summaries_store = SummariesStore()
+    summaries_store = SummariesStore(config)
     summaries_store.cleanup_old_summaries()
 
     ai_service = AIService(config)
@@ -51,10 +51,7 @@ def main():
 
         summary = ai_service.summarize_article(article['url'])
         subject = "📰 " + ai_service.generate_subject_line(article['title'], summary)
-
-        summaries_store = SummariesStore()
         summary_id = summaries_store.store_summary(summary)
-        logger.info(f"Stored summary with ID: {summary_id}")
 
         body = textwrap.dedent(f"""
             {article['title']}
@@ -66,7 +63,6 @@ def main():
             {article['url']}
         """)
         domain = config.domain
-        logger.info(f"Sample rating URL: {domain}/r5/{summary_id}")
 
         body_html = f"""
             <html>
@@ -182,12 +178,13 @@ def submit_rating(rating, summary_id):
         if rating < 1 or rating > 5:
             return jsonify({"status": "error", "message": "Rating must be between 1 and 5"}), 400
 
-        summaries_store = SummariesStore()
+        config = Config()
+        summaries_store = SummariesStore(config)
+
         article_summary = summaries_store.get_summary(summary_id)
         if not article_summary:
             return jsonify({"status": "error", "message": "Summary not found or expired"}), 404
 
-        config = Config()
         ai_service = AIService(config)
         preferences_store = PreferencesStore(config)
 

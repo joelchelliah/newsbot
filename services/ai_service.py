@@ -106,7 +106,7 @@ Based on the provided rating and article summary, update the user's preferences 
 - If they gave a neutral rating (3 stars), make minor adjustments or clarifications
 - ALWAYS keep ALL existing preferences and only ADD new ones or MODIFY relevant existing ones
 - Keep the preferences concise, actionable, and keyword-based
-- Return the COMPLETE updated preferences including all original preferences plus any additions/modifications"""},
+- Return the COMPLETE updated preferences MERGED with all original preferences, removing duplicates and keeping any additions/modifications"""},
                     {"role": "user", "content": f"Please update my preferences based on my {rating}-star rating of this article. The article summary is: {article_summary}. Remember to keep ALL my existing preferences and only add or modify based on this specific article."}
                 ],
                 max_tokens=300,
