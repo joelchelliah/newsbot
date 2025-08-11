@@ -16,7 +16,7 @@ class AIService:
             return None
 
         article_texts = [f"Title: {a['title']}\nDescription: {a['description']}" for a in articles[:10]]
-        self.logger.info(f"Selecting the best article from the top {len(article_texts)} articles, based on preferences: {preferences}")
+        self.logger.info(f"🔍  Selecting the best article from the top {len(article_texts)} articles, based on preferences: {preferences}")
 
         response = self.client.chat.completions.create(
             model=self.config.openai_model,
@@ -49,13 +49,12 @@ class AIService:
             index = args.get("index", 0)
 
             if 0 <= index < len(articles):
-                self.logger.info(f"Selected article index: {index}")
                 return articles[index]
             else:
-                self.logger.warning(f"AI returned invalid index {index}, using first article")
+                self.logger.warning(f"❌  AI returned invalid index {index}, using first article")
                 return articles[0]
         else:
-            self.logger.warning("AI didn't return structured response, using first article")
+            self.logger.warning("❌  AI didn't return structured response, using first article")
             return articles[0]
 
     def generate_subject_line(self, article_title: str, summary: str) -> str:
@@ -71,7 +70,6 @@ class AIService:
         return self._parse_response(response, "generate_subject_line")
 
     def summarize_article(self, url: str) -> str:
-        self.logger.info(f"Summarizing article")
         article = Article(url)
         article.download()
         article.parse()
@@ -100,15 +98,23 @@ IMPORTANT: You must PRESERVE all existing preferences and only ADD or MODIFY bas
 
 Current user preferences: {current_preferences}
 
-Based on the provided rating and article summary, update the user's preferences to better reflect what they like.
-- If they gave a high rating (4-5 stars), ADD similar topics, ideas, or writing styles to existing preferences
-- If they gave a low rating (1-2 stars), ADD negative preferences to avoid similar content
-- If they gave a neutral rating (3 stars), make minor adjustments or clarifications
-- ALWAYS keep ALL existing preferences and only ADD new ones or MODIFY relevant existing ones
-- Keep the preferences concise, actionable, and keyword-based
-- DO NOT separate preferences into 'Current preferences' and 'Updated preferences'. It should be a single concise list.
-- If the prefereces contain a keyword that is both positively-weighted and negatively-weighted, remove that keyword.
-- Return the MERGED preferences including original preferences plus any additions/modifications, and removing duplicates, as a single list."""},
+Based on the provided rating and article summary, intelligently update the user's preferences:
+- For HIGH ratings (4-5 stars): Add topics, themes, or content types that are SIMILAR to what they liked
+- For LOW ratings (1-2 stars): Add topics, themes, or content types to AVOID that are similar to what they disliked
+- For NEUTRAL ratings (3 stars): Make minor clarifications or adjustments
+
+CRITICAL RULES:
+1. NEVER copy phrases directly from the article summary
+2. Extract the UNDERLYING TOPICS, THEMES, or CONTENT TYPES from the article
+3. Convert these into general preference keywords that would apply to similar content
+4. Keep preferences concise, actionable, and keyword-based
+5. Return a single merged list of all preferences (original + updates)
+6. Remove any duplicates or conflicting preferences
+
+Examples:
+- If they dislike a "website closed on Monday" article → add "avoid: business hours updates, mundane operational news"
+- If they like a "funny cat video" article → add "humor, animal content, viral videos"
+- If they dislike a "philosophical debate" article → add "avoid: abstract philosophy, theoretical discussions\""""},
                     {"role": "user", "content": f"Please update my preferences based on my {rating}-star rating of this article. The article summary is: {article_summary}. Remember to keep ALL my existing preferences and only add or modify based on this specific article."}
                 ],
                 max_tokens=300,
@@ -118,20 +124,18 @@ Based on the provided rating and article summary, update the user's preferences 
             updated_preferences = self._parse_response(response, "update_preferences_from_rating")
 
             if updated_preferences and updated_preferences.strip():
-                self.logger.info(f"Successfully updated preferences based on {rating}-star rating: {updated_preferences}")
+                self.logger.info(f"📝  Updated preferences based on {rating}-star rating: {updated_preferences}")
                 return updated_preferences.strip()
             else:
-                self.logger.warning("Failed to get updated preferences from AI")
+                self.logger.warning("❌  Failed to get updated preferences from AI")
                 return current_preferences
 
         except Exception as e:
-            self.logger.error(f"Error updating preferences from rating: {e}")
+            self.logger.error(f"❌  Error updating preferences from rating: {e}")
             return current_preferences
 
     def generate_image(self, article_title: str, summary: str) -> str:
         try:
-            self.logger.info("🎨   Generating cartoon image for article")
-
             prompt = f"""Create a fun, cartoon-style illustration for a news article.
 
 Article Title: {article_title}
@@ -152,7 +156,7 @@ Size: Wide format, suitable for email header (2:1 ratio)"""
 
             if response.data and len(response.data) > 0:
                 image_url = response.data[0].url
-                self.logger.info("Successfully generated image")
+                self.logger.info("🎨  Generated image for article")
                 return image_url
             else:
                 self.logger.warning("❌  Failed to generate image")

@@ -24,8 +24,6 @@ def main():
 
     summaries_store.cleanup_old_summaries()
     preferences = preferences_store.get_preferences()
-
-    logger.info("📰  Fetching top news article...")
     articles = news_service.fetch_top_news_articles()
     article = ai_service.select_best_article(articles, preferences)
 
@@ -38,7 +36,7 @@ def main():
         image_url = ai_service.generate_image(title, summary)
         summary_id = summaries_store.store_summary(summary)
 
-        email_service.send_news_email(article, summary, summary_id, subject, image_url)
+        email_service.send_email(article, summary, summary_id, subject, image_url)
         return True
     else:
         logger.warning("❌  No articles found")

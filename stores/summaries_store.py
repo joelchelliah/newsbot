@@ -38,7 +38,7 @@ class SummariesStore:
                 'expires_at': (datetime.datetime.now() + datetime.timedelta(hours=48)).isoformat()
             }).execute()
 
-            self.logger.info(f"Stored summary with ID: {summary_id}")
+            self.logger.info(f"📝  Stored summary with ID: {summary_id}")
             return summary_id
 
         except Exception as e:

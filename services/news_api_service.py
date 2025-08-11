@@ -32,13 +32,13 @@ class NewsApiService:
             response.raise_for_status()
 
             articles = response.json().get("articles", [])
-            self.logger.info(f"Found {len(articles)} articles from {from_date} to {today}")
+            self.logger.info(f"📰  Found {len(articles)} articles from {from_date} to {today}")
 
             return articles if articles else []
 
         except requests.exceptions.RequestException as e:
-            self.logger.error(f"Failed to fetch news: {e}")
+            self.logger.error(f"❌  Failed to fetch news: {e}")
             return []
         except Exception as e:
-            self.logger.error(f"Unexpected error fetching news: {e}")
+            self.logger.error(f"❌  Unexpected error fetching news: {e}")
             return []

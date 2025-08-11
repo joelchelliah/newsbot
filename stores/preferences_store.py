@@ -66,7 +66,6 @@ class PreferencesStore:
                 'is_latest': True
             }).execute()
 
-            self.logger.info(f"Updated preferences. Latest version: {current_version}")
             return True
 
         except Exception as e:
