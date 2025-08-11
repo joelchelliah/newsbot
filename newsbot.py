@@ -47,10 +47,12 @@ def main():
     article = ai_service.select_best_article(articles, preferences)
 
     if article:
-        logger.info(f"🗞️  Found article: {article['title']}")
+        title = article['title']
+        logger.info(f"🗞️  Found article: {title}")
 
         summary = ai_service.summarize_article(article['url'])
-        subject = "📰 " + ai_service.generate_subject_line(article['title'], summary)
+        subject = "📰 " + ai_service.generate_subject_line(title, summary)
+        image_url = ai_service.generate_image(title, summary)
         summary_id = summaries_store.store_summary(summary)
 
         body = textwrap.dedent(f"""
@@ -68,6 +70,14 @@ def main():
             <html>
             <head>
                 <style>
+                    .header-image {{
+                        width: 100%;
+                        max-width: 600px;
+                        height: auto;
+                        border-radius: 8px;
+                        margin: 20px 0;
+                        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+                    }}
                     .rating-container {{
                         margin: 20px 0;
                         text-align: center;
@@ -97,6 +107,7 @@ def main():
             </head>
             <body>
                 <h2>{article['title']}</h2>
+                {f'<img src="{image_url}" alt="Article illustration" class="header-image">' if image_url else ''}
                 <p><strong>Description:</strong> {article['description']}</p>
                 <p><strong>Summary:</strong> {summary}</p>
                 <p>📰 <a href="{article['url']}">Read the full article</a></p>

@@ -106,7 +106,9 @@ Based on the provided rating and article summary, update the user's preferences 
 - If they gave a neutral rating (3 stars), make minor adjustments or clarifications
 - ALWAYS keep ALL existing preferences and only ADD new ones or MODIFY relevant existing ones
 - Keep the preferences concise, actionable, and keyword-based
-- Return the COMPLETE updated preferences MERGED with all original preferences, removing duplicates and keeping any additions/modifications"""},
+- DO NOT separate preferences into 'Current preferences' and 'Updated preferences'. It should be a single concise list.
+- If the prefereces contain a keyword that is both positively-weighted and negatively-weighted, remove that keyword.
+- Return the MERGED preferences including original preferences plus any additions/modifications, and removing duplicates, as a single list."""},
                     {"role": "user", "content": f"Please update my preferences based on my {rating}-star rating of this article. The article summary is: {article_summary}. Remember to keep ALL my existing preferences and only add or modify based on this specific article."}
                 ],
                 max_tokens=300,
@@ -125,6 +127,40 @@ Based on the provided rating and article summary, update the user's preferences 
         except Exception as e:
             self.logger.error(f"Error updating preferences from rating: {e}")
             return current_preferences
+
+    def generate_image(self, article_title: str, summary: str) -> str:
+        try:
+            self.logger.info("🎨   Generating cartoon image for article")
+
+            prompt = f"""Create a fun, cartoon-style illustration for a news article.
+
+Article Title: {article_title}
+Summary: {summary}
+
+Style: Cartoon, comic, friendly, colorful, engaging, professional but playful
+Format: Digital illustration, suitable for email header
+Tone: Light and engaging, not too serious
+Size: Wide format, suitable for email header (2:1 ratio)"""
+
+            response = self.client.images.generate(
+                model="dall-e-3",
+                prompt=prompt,
+                size="1024x512",
+                quality="standard",
+                n=1,
+            )
+
+            if response.data and len(response.data) > 0:
+                image_url = response.data[0].url
+                self.logger.info("Successfully generated image")
+                return image_url
+            else:
+                self.logger.warning("❌  Failed to generate image")
+                return ""
+
+        except Exception as e:
+            self.logger.error(f"❌  Error generating image: {e}")
+            return ""
 
     def _parse_response(self, response, function_name: str = "unknown") -> str:
         try:
