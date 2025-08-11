@@ -145,7 +145,7 @@ Size: Wide format, suitable for email header (2:1 ratio)"""
             response = self.client.images.generate(
                 model="dall-e-3",
                 prompt=prompt,
-                size="1024x512",
+                size="1792x1024",
                 quality="standard",
                 n=1,
             )

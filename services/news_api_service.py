@@ -23,7 +23,6 @@ class NewsApiService:
         }
 
         try:
-            self.logger.info(f"Fetching news articles from {from_date} to {today}")
             response = requests.get(
                 url,
                 params=params,
@@ -33,7 +32,7 @@ class NewsApiService:
             response.raise_for_status()
 
             articles = response.json().get("articles", [])
-            self.logger.info(f"Found {len(articles)} articles")
+            self.logger.info(f"Found {len(articles)} articles from {from_date} to {today}")
 
             return articles if articles else []
 

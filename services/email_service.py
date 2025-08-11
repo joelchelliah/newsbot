@@ -37,10 +37,12 @@ class EmailService:
                     .header-image {{
                         width: 100%;
                         max-width: 600px;
+                        max-height: 512px;
                         height: auto;
                         border-radius: 8px;
                         margin: 20px 0;
                         box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+                        object-fit: contain;
                     }}
                     .rating-container {{
                         margin: 20px 0;
