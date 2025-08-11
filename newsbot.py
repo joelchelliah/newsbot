@@ -1,27 +1,11 @@
-from email.message import EmailMessage
-import smtplib
-import textwrap
 from config import Config
 from logger import get_logger
 from flask import Flask, jsonify, request
 import os
-from services import AIService, NewsApiService
+from services import AIService, NewsApiService, EmailService
 from stores import SummariesStore, PreferencesStore
 
 app = Flask(__name__)
-
-
-def send_email(subject, body, body_html, config):
-    msg = EmailMessage()
-    msg["Subject"] = subject
-    msg["From"] = config.from_email
-    msg["To"] = config.to_email
-    msg.set_content(body)
-    msg.add_alternative(body_html, subtype="html")
-
-    with smtplib.SMTP_SSL(config.smtp_server, config.smtp_port) as smtp:
-        smtp.login(config.from_email, config.smtp_password)
-        smtp.send_message(msg)
 
 def main():
     logger = get_logger()
@@ -32,14 +16,13 @@ def main():
         logger.error("⚠️  Missing required environment variables")
         return
 
-    logger.info("🧹  Cleaning up old summaries")
-    summaries_store = SummariesStore(config)
-    summaries_store.cleanup_old_summaries()
-
     ai_service = AIService(config)
     news_service = NewsApiService(config)
+    email_service = EmailService(config)
+    summaries_store = SummariesStore(config)
     preferences_store = PreferencesStore(config)
 
+    summaries_store.cleanup_old_summaries()
     preferences = preferences_store.get_preferences()
 
     logger.info("📰  Fetching top news article...")
@@ -55,84 +38,10 @@ def main():
         image_url = ai_service.generate_image(title, summary)
         summary_id = summaries_store.store_summary(summary)
 
-        body = textwrap.dedent(f"""
-            {article['title']}
-
-            {article['description']}
-
-            {summary}
-
-            {article['url']}
-        """)
-        domain = config.domain
-
-        body_html = f"""
-            <html>
-            <head>
-                <style>
-                    .header-image {{
-                        width: 100%;
-                        max-width: 600px;
-                        height: auto;
-                        border-radius: 8px;
-                        margin: 20px 0;
-                        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-                    }}
-                    .rating-container {{
-                        margin: 20px 0;
-                        text-align: center;
-                    }}
-                    .star-link {{
-                        text-decoration: none;
-                        color: #666;
-                        font-size: 16px;
-                        padding: 8px 12px;
-                        margin: 0 2px;
-                        display: inline-block;
-                        border: 1px solid #ccc;
-                        border-radius: 4px;
-                        background-color: #f9f9f9;
-                    }}
-                    .star-link:hover {{
-                        color: #333;
-                        background-color: #e9e9e9;
-                        border-color: #999;
-                    }}
-                    .rating-text {{
-                        margin-top: 10px;
-                        font-size: 14px;
-                        color: #666;
-                    }}
-                </style>
-            </head>
-            <body>
-                <h2>{article['title']}</h2>
-                {f'<img src="{image_url}" alt="Article illustration" class="header-image">' if image_url else ''}
-                <p><strong>Description:</strong> {article['description']}</p>
-                <p><strong>Summary:</strong> {summary}</p>
-                <p>📰 <a href="{article['url']}">Read the full article</a></p>
-
-                <div class="rating-container">
-                    <p><strong>Rate this article:</strong></p>
-                    <div>
-                        <a href="{domain}/r1/{summary_id}" class="star-link" title="Rate 1 star">[1★]</a>
-                        <a href="{domain}/r2/{summary_id}" class="star-link" title="Rate 2 stars">[2★]</a>
-                        <a href="{domain}/r3/{summary_id}" class="star-link" title="Rate 3 stars">[3★]</a>
-                        <a href="{domain}/r4/{summary_id}" class="star-link" title="Rate 4 stars">[4★]</a>
-                        <a href="{domain}/r5/{summary_id}" class="star-link" title="Rate 5 stars">[5★]</a>
-                    </div>
-                    <p class="rating-text">Click a star to rate this article and help improve future recommendations</p>
-                </div>
-            </body>
-            </html>
-        """
-
-        logger.info("Sending email")
-        send_email(subject, body, body_html, config)
-        logger.info("News email sent successfully!")
+        email_service.send_news_email(article, summary, summary_id, subject, image_url)
         return True
     else:
-        logger.warning("No articles found")
+        logger.warning("❌  No articles found")
         return False
 
 @app.route('/')
