@@ -136,10 +136,22 @@ Examples:
 
     def generate_image(self, article_title: str, summary: str) -> str:
         try:
-            prompt = f"""Create a fun, cartoon-style illustration for a news article.
+            sanitized_content = self._ai_sanitize_for_image(article_title, summary)
 
-Article Title: {article_title}
-Summary: {summary}
+            if sanitized_content.get('use_generic', False):
+                self.logger.info("⚠️  AI flagged content as too sensitive, using generic image prompt")
+                prompt = """Create a fun, cartoon-style illustration for a news article.
+
+Style: Cartoon, comic, friendly, colorful, engaging, professional but playful
+Format: Digital illustration, suitable for email header
+Tone: Light and engaging, not too serious
+Size: Wide format, suitable for email header (2:1 ratio)
+Content: Generic news reading scene with newspapers, coffee, and reading glasses"""
+            else:
+                prompt = f"""Create a fun, cartoon-style illustration for a news article.
+
+Article Title: {sanitized_content['title']}
+Summary: {sanitized_content['summary']}
 
 Style: Cartoon, comic, friendly, colorful, engaging, professional but playful
 Format: Digital illustration, suitable for email header
@@ -165,6 +177,68 @@ Size: Wide format, suitable for email header (2:1 ratio)"""
         except Exception as e:
             self.logger.error(f"❌  Error generating image: {e}")
             return ""
+
+    def _ai_sanitize_for_image(self, title: str, summary: str) -> dict:
+        try:
+            response = self.client.chat.completions.create(
+                model=self.config.openai_model,
+                messages=[
+                    {"role": "system", "content": """You are an AI that sanitizes news content for image generation to avoid content policy violations.
+
+Your task is to:
+1. Clean the title and summary to make them suitable for DALL-E image generation
+2. Replace problematic terms with safer alternatives
+3. If content is too sensitive/violent/controversial, flag it for generic image use
+4. Maintain the core meaning while making it image-generation friendly
+
+Return a JSON object with:
+- "title": cleaned title
+- "summary": cleaned summary
+- "use_generic": true if content is too sensitive for specific images, false otherwise
+
+Examples of what to avoid: violence, graphic content, controversial political topics, sensitive personal issues"""},
+                    {"role": "user", "content": f"Please sanitize this content for image generation:\nTitle: {title}\nSummary: {summary}"}
+                ],
+                functions=[{
+                    "name": "sanitize_content",
+                    "description": "Sanitize content for image generation",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "title": {
+                                "type": "string",
+                                "description": "Cleaned title suitable for image generation"
+                            },
+                            "summary": {
+                                "type": "string",
+                                "description": "Cleaned summary suitable for image generation"
+                            },
+                            "use_generic": {
+                                "type": "boolean",
+                                "description": "True if content is too sensitive and should use generic image"
+                            }
+                        },
+                        "required": ["title", "summary", "use_generic"]
+                    }
+                }],
+                function_call={"name": "sanitize_content"}
+            )
+
+            function_call = response.choices[0].message.function_call
+            if function_call and function_call.name == "sanitize_content":
+                args = json.loads(function_call.arguments)
+                return {
+                    "title": args.get("title", title),
+                    "summary": args.get("summary", summary),
+                    "use_generic": args.get("use_generic", False)
+                }
+            else:
+                self.logger.warning("❌  AI didn't return structured sanitization response")
+                return {"title": title, "summary": summary, "use_generic": False}
+
+        except Exception as e:
+            self.logger.error(f"❌  Error sanitizing content with AI: {e}")
+            return {"title": title, "summary": summary, "use_generic": False}
 
     def _parse_response(self, response, function_name: str = "unknown") -> str:
         try:
