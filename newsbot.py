@@ -7,55 +7,50 @@ from stores import SummariesStore, PreferencesStore
 
 app = Flask(__name__)
 
-def main():
-    logger = get_logger()
-    logger.info("🤖  Starting NewsBot application")
-
-    config = Config()
-    if not config.validate():
-        logger.error("⚠️  Missing required environment variables")
-        return
-
-    ai_service = AIService(config)
-    news_service = NewsApiService(config)
-    email_service = EmailService(config)
-    summaries_store = SummariesStore(config)
-    preferences_store = PreferencesStore(config)
-
-    summaries_store.cleanup_old_summaries()
-    preferences = preferences_store.get_preferences()
-    articles = news_service.fetch_top_news_articles()
-    article = ai_service.select_best_article(articles, preferences)
-
-    if article:
-        title = article['title']
-        logger.info(f"🗞️  Found article: {title}")
-
-        summary = ai_service.summarize_article(article['url'])
-        subject = "📰 " + ai_service.generate_subject_line(title, summary)
-        image_url = ai_service.generate_image(title, summary)
-        summary_id = summaries_store.store_summary(summary)
-
-        email_service.send_email(article, summary, summary_id, subject, image_url)
-        return True
-    else:
-        logger.warning("❌  No articles found")
-        return False
-
 @app.route('/')
 def health_check():
     return jsonify({"status": "healthy", "message": "NewsBot is running"})
 
+
 @app.route('/trigger', methods=['POST'])
 def trigger_newsbot():
     try:
-        success = main()
-        if success:
+        logger = get_logger()
+        logger.info("🤖  Triggering the NewsBot")
+
+        config = Config()
+        if not config.validate():
+            logger.error("⚠️  Missing required environment variables")
+            return
+
+        ai_service = AIService(config)
+        news_service = NewsApiService(config)
+        email_service = EmailService(config)
+        summaries_store = SummariesStore(config)
+        preferences_store = PreferencesStore(config)
+
+        summaries_store.cleanup_old_summaries()
+        preferences = preferences_store.get_preferences()
+        articles = news_service.fetch_top_news_articles()
+        article = ai_service.select_best_article(articles, preferences)
+
+        if article:
+            title = article['title']
+            logger.info(f"🗞️  Found article: {title}")
+
+            summary = ai_service.summarize_article(article['url'])
+            subject = "📰 " + ai_service.generate_subject_line(title, summary)
+            image_url = ai_service.generate_image(title, summary)
+            summary_id = summaries_store.store_summary(summary)
+
+            email_service.send_email(article, summary, summary_id, subject, image_url)
             return jsonify({"status": "success", "message": "News email sent successfully!"})
         else:
+            logger.warning("❌  No articles found")
             return jsonify({"status": "warning", "message": "No articles found"}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 @app.route('/preferences', methods=['GET'])
 def get_preferences():
@@ -64,12 +59,14 @@ def get_preferences():
 
     return preferences
 
+
 @app.route('/preferences/history', methods=['GET'])
 def get_preferences_history():
     preferences_store = PreferencesStore(Config())
     history = preferences_store.get_history()
 
     return jsonify({"count": len(history), "history": history})
+
 
 @app.route('/preferences', methods=['POST'])
 def update_preferences():
@@ -91,6 +88,7 @@ def update_preferences():
             return jsonify({"status": "error", "message": "Failed to save preferences"}), 500
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 @app.route('/r<int:rating>/<summary_id>', methods=['GET'])
 def submit_rating(rating, summary_id):
@@ -141,9 +139,11 @@ def submit_rating(rating, summary_id):
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+
 @app.errorhandler(404)
 def not_found(error):
     return jsonify({"error": "Not found"}), 404
+
 
 if __name__ == "__main__":
     # Suppress Flask development server warning in production
