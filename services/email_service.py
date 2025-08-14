@@ -52,7 +52,7 @@ class EmailService:
                         text-decoration: none;
                         color: #666;
                         font-size: 16px;
-                        padding: 8px 12px;
+                        padding: 12px 16px;
                         margin: 0 2px;
                         display: inline-block;
                         border: 1px solid #ccc;
@@ -81,13 +81,11 @@ class EmailService:
                 <div class="rating-container">
                     <p><strong>Rate this article:</strong></p>
                     <div>
-                        <a href="{domain}/r1/{summary_id}" class="star-link" title="Rate 1 star">[1★]</a>
-                        <a href="{domain}/r2/{summary_id}" class="star-link" title="Rate 2 stars">[2★]</a>
-                        <a href="{domain}/r3/{summary_id}" class="star-link" title="Rate 3 stars">[3★]</a>
-                        <a href="{domain}/r4/{summary_id}" class="star-link" title="Rate 4 stars">[4★]</a>
-                        <a href="{domain}/r5/{summary_id}" class="star-link" title="Rate 5 stars">[5★]</a>
+                        <a href="{domain}/r1/{summary_id}" class="star-link" title="Dislike">🤢</a>
+                        <a href="{domain}/r2/{summary_id}" class="star-link" title="Neutral">😐</a>
+                        <a href="{domain}/r3/{summary_id}" class="star-link" title="Like">🤩</a>
                     </div>
-                    <p class="rating-text">Click a star to rate this article and help improve future recommendations</p>
+                    <p class="rating-text">How would you rate this article?</p>
                 </div>
             </body>
             </html>

@@ -1,6 +1,7 @@
 from config import Config
 from logger import get_logger
 from supabase import create_client, Client
+import json
 
 
 class PreferencesStore:
@@ -25,35 +26,42 @@ class PreferencesStore:
             PreferencesStore._initialized = True
             self.logger.info("✅  PreferencesStore initialized")
 
-    def get_preferences(self) -> str:
+    def get_preferences(self) -> dict:
         try:
             response = self.supabase.table('preferences').select('preferences').eq('is_latest', True).execute()
 
             if response.data and len(response.data) > 0:
                 return response.data[0]['preferences']
             else:
-                self.logger.warning("No preferences found in Supabase, using config default")
-                return self.config.preferences
+                self.logger.warning("🤷  No preferences found in Supabase. Using config default.")
+                return self._parse_config_default()
 
         except Exception as e:
-            self.logger.error(f"❌  Failed to get preferences from Supabase: {e}")
-            return self.config.preferences
+            self.logger.error(f"❌  Failed to get preferences from Supabase: {e}. Using config default.")
+            return self._parse_config_default()
 
     def get_history(self) -> list:
         try:
             response = self.supabase.table('preferences').select('preferences, version, created_at').order('version', desc=True).limit(20).execute()
 
             if response.data:
-                return [item['preferences'] for item in response.data]
+                return [json.dumps(item['preferences']) for item in response.data]
             else:
+                self.logger.warning("🤷  No preferences history found in Supabase.")
                 return []
 
         except Exception as e:
             self.logger.error(f"❌  Failed to get preferences history from Supabase: {e}")
             return []
 
-    def update_preferences(self, new_preferences: str) -> bool:
+    def update_preferences(self, new_preferences) -> bool:
         try:
+            # Handle both dict and string inputs
+            if isinstance(new_preferences, str):
+                preferences_dict = json.loads(new_preferences)
+            else:
+                preferences_dict = new_preferences
+
             response = self.supabase.table('preferences').select('version').order('version', desc=True).limit(1).execute()
             current_version = 1
             if response.data and len(response.data) > 0:
@@ -61,7 +69,7 @@ class PreferencesStore:
 
             self.supabase.table('preferences').update({'is_latest': False}).eq('is_latest', True).execute()
             self.supabase.table('preferences').insert({
-                'preferences': new_preferences,
+                'preferences': preferences_dict,
                 'version': current_version,
                 'is_latest': True
             }).execute()
@@ -71,3 +79,13 @@ class PreferencesStore:
         except Exception as e:
             self.logger.error(f"❌  Failed to save preferences to Supabase: {e}")
             return False
+
+    def _parse_config_default(self) -> dict:
+        if not self.config.preferences:
+            return {}
+
+        try:
+            return json.loads(self.config.preferences)
+        except json.JSONDecodeError:
+            self.logger.warning("❌  Config default preferences is not valid JSON, using empty dict.")
+            return {}

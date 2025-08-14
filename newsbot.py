@@ -60,8 +60,9 @@ def trigger_newsbot():
 @app.route('/preferences', methods=['GET'])
 def get_preferences():
     preferences_store = PreferencesStore(Config())
+    preferences = preferences_store.get_preferences()
 
-    return preferences_store.get_preferences()
+    return preferences
 
 @app.route('/preferences/history', methods=['GET'])
 def get_preferences_history():
@@ -80,10 +81,11 @@ def update_preferences():
         success = preferences_store.update_preferences(new_preferences)
 
         if success:
+            updated_prefs = preferences_store.get_preferences()
             return jsonify({
                 "status": "success",
                 "message": "Preferences updated and saved",
-                "preferences": new_preferences
+                "preferences": updated_prefs
             })
         else:
             return jsonify({"status": "error", "message": "Failed to save preferences"}), 500
@@ -93,8 +95,8 @@ def update_preferences():
 @app.route('/r<int:rating>/<summary_id>', methods=['GET'])
 def submit_rating(rating, summary_id):
     try:
-        if rating < 1 or rating > 5:
-            return jsonify({"status": "error", "message": "Rating must be between 1 and 5"}), 400
+        if rating < 1 or rating > 3:
+            return jsonify({"status": "error", "message": "Rating must be between 1 and 3"}), 400
 
         config = Config()
         summaries_store = SummariesStore(config)
@@ -138,6 +140,10 @@ def submit_rating(rating, summary_id):
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({"error": "Not found"}), 404
 
 if __name__ == "__main__":
     # Suppress Flask development server warning in production
