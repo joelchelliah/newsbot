@@ -2,6 +2,7 @@ from config import Config
 from logger import get_logger
 from supabase import create_client, Client
 import json
+from preference_types import PreferencesWithEmbeddings, PreferenceWithEmbedding
 
 
 class PreferencesStore:
@@ -80,6 +81,50 @@ class PreferencesStore:
             self.logger.error(f"❌  Failed to save preferences to Supabase: {e}")
             return False
 
+    def get_preferences_with_embeddings(self) -> PreferencesWithEmbeddings:
+        try:
+            response = self.supabase.table('preferences').select('preferences').eq('is_latest', True).execute()
+
+            if response.data and len(response.data) > 0:
+                preferences = response.data[0]['preferences']
+
+                return preferences
+            else:
+                self.logger.warning("🤷  No preferences found in Supabase. Using default.")
+                return self._parse_config_default()
+
+        except Exception as e:
+            self.logger.error(f"❌  Failed to get preferences with embeddings from Supabase: {e}. Using default.")
+            return self._parse_config_default()
+
+    def update_preferences_with_embeddings(self, new_preferences: PreferencesWithEmbeddings) -> bool:
+        """Update preferences that already include embeddings"""
+        try:
+            # Handle both dict and string inputs
+            if isinstance(new_preferences, str):
+                preferences_dict = json.loads(new_preferences)
+            else:
+                preferences_dict = new_preferences
+
+            response = self.supabase.table('preferences').select('version').order('version', desc=True).limit(1).execute()
+            current_version = 1
+            if response.data and len(response.data) > 0:
+                current_version = response.data[0]['version'] + 1
+
+            self.supabase.table('preferences').update({'is_latest': False}).eq('is_latest', True).execute()
+            self.supabase.table('preferences').insert({
+                'preferences': preferences_dict,
+                'version': current_version,
+                'is_latest': True
+            }).execute()
+
+            self.logger.info(f"📝 Saved {len(preferences_dict)} preferences with embeddings to database")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"❌  Failed to save preferences with embeddings to Supabase: {e}")
+            return False
+
     def _parse_config_default(self) -> dict:
         if not self.config.preferences:
             return {}
@@ -89,3 +134,60 @@ class PreferencesStore:
         except json.JSONDecodeError:
             self.logger.warning("❌  Config default preferences is not valid JSON, using empty dict.")
             return {}
+
+
+
+    def get_preferences_embeddings_only(self) -> PreferencesWithEmbeddings:
+        """Get only the embedding data from preferences (for performance)"""
+        try:
+            preferences_with_embeddings = self.get_preferences_with_embeddings()
+
+            # Extract just the embedding data
+            embeddings_only = {}
+            for keyword, data in preferences_with_embeddings.items():
+                if isinstance(data, dict) and "embedding" in data:
+                    embeddings_only[keyword] = {
+                        "score": data["score"],
+                        "embedding": data["embedding"]
+                    }
+                else:
+                    # If preference doesn't have embedding, skip it
+                    # This should not happen if all preferences are created with embeddings
+                    self.logger.warning(f"⚠️  Preference '{keyword}' missing embedding data, skipping")
+
+            return embeddings_only
+
+        except Exception as e:
+            self.logger.error(f"❌ Error getting preferences embeddings: {e}")
+            return {}
+
+    def cleanup_old_embeddings(self) -> bool:
+        """Remove embeddings from old preference versions to save space"""
+        try:
+            # Get all preference versions except the latest
+            response = self.supabase.table('preferences').select('id, preferences').eq('is_latest', False).execute()
+
+            if response.data:
+                for record in response.data:
+                    preferences = record['preferences']
+                    cleaned_preferences = {}
+
+                    # Remove embeddings but keep scores
+                    for keyword, data in preferences.items():
+                        if isinstance(data, dict) and "embedding" in data:
+                            cleaned_preferences[keyword] = data["score"]
+                        else:
+                            cleaned_preferences[keyword] = data
+
+                    # Update the record without embeddings
+                    self.supabase.table('preferences').update({
+                        'preferences': cleaned_preferences
+                    }).eq('id', record['id']).execute()
+
+                self.logger.info(f"🧹 Cleaned embeddings from {len(response.data)} old preference versions")
+
+            return True
+
+        except Exception as e:
+            self.logger.error(f"❌ Error cleaning up old embeddings: {e}")
+            return False
