@@ -14,7 +14,6 @@ class Config:
     smtp_server: str = "smtp.gmail.com"
     smtp_port: int = 465
     openai_model: str = "gpt-3.5-turbo"
-    preferences: str = os.getenv("NEWSBOT_DEFAULT_PREFERENCES", "")
     domain: str = os.getenv("NEWSBOT_DOMAIN", "")
     supabase_url: str = os.getenv("SUPABASE_URL", "")
     supabase_key: str = os.getenv("SUPABASE_SERVICE_KEY", "")

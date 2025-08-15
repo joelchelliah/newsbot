@@ -83,6 +83,9 @@ ipython_config.py
 # User preferences (local data)
 data/
 
+# Default preferences with embeddings (contains API-generated data)
+default_preferences.json
+
 # pdm
 .pdm-python
 .pdm-build/

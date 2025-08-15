@@ -7,3 +7,4 @@ lxml_html_clean>=0.1.1
 flask
 gunicorn
 supabase>=2.0.0
+numpy>=1.21.0
