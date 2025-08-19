@@ -1,0 +1,25 @@
+name: Keep Render Alive
+
+on:
+  schedule:
+    # Runs every 14 minutes
+    - cron: '*/14 * * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  ping-render:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render deployment
+        run: |
+          # Get the Render URL from environment or use a default pattern
+          RENDER_URL="${RENDER_URL}"
+
+          echo "Pinging Render deployment at: $RENDER_URL"
+          response=$(curl -s -o /dev/null -w "%{http_code}" "$RENDER_URL" || echo "000")
+
+          if [ "$response" = "200" ] || [ "$response" = "404" ] || [ "$response" = "503" ]; then
+            echo "✅ Successfully pinged Render deployment (HTTP $response)"
+          else
+            echo "⚠️  Ping returned HTTP $response - deployment might be starting up"
+          fi

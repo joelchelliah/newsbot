@@ -4,6 +4,7 @@ from flask import Flask, jsonify, request
 import os
 from services import AIService, NewsApiService, EmailService
 from stores import SummariesStore, PreferencesStore
+from _types import PreferencesWithEmbeddings
 
 app = Flask(__name__)
 
@@ -30,9 +31,9 @@ def trigger_newsbot():
         preferences_store = PreferencesStore(config)
 
         summaries_store.cleanup_old_summaries()
-        preferences = preferences_store.get_preferences()
+        preferences: PreferencesWithEmbeddings = preferences_store.get_preferences_with_embeddings()
         articles = news_service.fetch_top_news_articles()
-        article = ai_service.select_best_article(articles, preferences)
+        article = ai_service.select_best_article_with_embeddings(articles, preferences)
 
         if article:
             title = article['title']
@@ -55,7 +56,7 @@ def trigger_newsbot():
 @app.route('/preferences', methods=['GET'])
 def get_preferences():
     preferences_store = PreferencesStore(Config())
-    preferences = preferences_store.get_preferences()
+    preferences = preferences_store.get_preferences_with_embeddings()
 
     return preferences
 
@@ -78,7 +79,7 @@ def update_preferences():
         success = preferences_store.update_preferences(new_preferences)
 
         if success:
-            updated_prefs = preferences_store.get_preferences()
+            updated_prefs = preferences_store.get_preferences_with_embeddings()
             return jsonify({
                 "status": "success",
                 "message": "Preferences updated and saved",
@@ -106,13 +107,13 @@ def submit_rating(rating, summary_id):
         ai_service = AIService(config)
         preferences_store = PreferencesStore(config)
 
-        current_preferences = preferences_store.get_preferences()
-        updated_preferences = ai_service.update_preferences_from_rating(
+        current_preferences: PreferencesWithEmbeddings = preferences_store.get_preferences_with_embeddings()
+        updated_preferences: PreferencesWithEmbeddings = ai_service.update_preferences_from_rating_with_embeddings(
             current_preferences, rating, article_summary
         )
 
         if updated_preferences:
-            success = preferences_store.update_preferences(updated_preferences)
+            success = preferences_store.update_preferences_with_embeddings(updated_preferences)
             if success:
                 return f"""
                 <html>

@@ -2,6 +2,7 @@ from config import Config
 from logger import get_logger
 from supabase import create_client, Client
 import json
+from _types import PreferencesWithEmbeddings
 
 
 class PreferencesStore:
@@ -33,11 +34,11 @@ class PreferencesStore:
             if response.data and len(response.data) > 0:
                 return response.data[0]['preferences']
             else:
-                self.logger.warning("🤷  No preferences found in Supabase. Using config default.")
+                self.logger.warning("🤷  No preferences found in Supabase. Using default.")
                 return self._parse_config_default()
 
         except Exception as e:
-            self.logger.error(f"❌  Failed to get preferences from Supabase: {e}. Using config default.")
+            self.logger.error(f"❌  Failed to get preferences from Supabase: {e}. Using default.")
             return self._parse_config_default()
 
     def get_history(self) -> list:
@@ -80,12 +81,59 @@ class PreferencesStore:
             self.logger.error(f"❌  Failed to save preferences to Supabase: {e}")
             return False
 
-    def _parse_config_default(self) -> dict:
-        if not self.config.preferences:
-            return {}
-
+    def get_preferences_with_embeddings(self) -> PreferencesWithEmbeddings:
         try:
-            return json.loads(self.config.preferences)
+            response = self.supabase.table('preferences').select('preferences').eq('is_latest', True).execute()
+
+            if response.data and len(response.data) > 0:
+                preferences = response.data[0]['preferences']
+
+                return preferences
+            else:
+                self.logger.warning("🤷  No preferences found in Supabase. Using default.")
+                return self._parse_config_default()
+
+        except Exception as e:
+            self.logger.error(f"❌  Failed to get preferences with embeddings from Supabase: {e}. Using default.")
+            return self._parse_config_default()
+
+    def update_preferences_with_embeddings(self, new_preferences: PreferencesWithEmbeddings) -> bool:
+        """Update preferences that already include embeddings"""
+        try:
+            # Handle both dict and string inputs
+            if isinstance(new_preferences, str):
+                preferences_dict = json.loads(new_preferences)
+            else:
+                preferences_dict = new_preferences
+
+            response = self.supabase.table('preferences').select('version').order('version', desc=True).limit(1).execute()
+            current_version = 1
+            if response.data and len(response.data) > 0:
+                current_version = response.data[0]['version'] + 1
+
+            self.supabase.table('preferences').update({'is_latest': False}).eq('is_latest', True).execute()
+            self.supabase.table('preferences').insert({
+                'preferences': preferences_dict,
+                'version': current_version,
+                'is_latest': True
+            }).execute()
+
+            self.logger.info(f"📝 Saved {len(preferences_dict)} preferences with embeddings to database")
+            return True
+
+        except Exception as e:
+            self.logger.error(f"❌  Failed to save preferences with embeddings to Supabase: {e}")
+            return False
+
+    def _parse_config_default(self) -> dict:
+        try:
+            with open('default_preferences.json', 'r') as f:
+                default_prefs = json.load(f)
+                self.logger.info("📁  Loaded default preferences from default_preferences.json")
+                return default_prefs
+        except FileNotFoundError:
+            self.logger.warning("❌  default_preferences.json not found, using empty dict.")
+            return {}
         except json.JSONDecodeError:
-            self.logger.warning("❌  Config default preferences is not valid JSON, using empty dict.")
+            self.logger.warning("❌  default_preferences.json is not valid JSON, using empty dict.")
             return {}
