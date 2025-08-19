@@ -2,41 +2,61 @@
 
 An AI-powered news assistant that automatically finds, summarizes, and emails you the most relevant news article from the last 24 hours.
 
----
-
-### 🤖 Current usage
 Deployed to [render.com](https://dashboard.render.com/), and triggered daily via a GH Action.
+
+---
 
 ### 🎯 Preference System
 
-NewsBot uses a **JSON**-based preference system with keyword scoring (1-5) to learn your interests:
+NewsBot uses an **AI-powered preference system** with semantic embeddings and scoring (-5 to 5) to learn your interests:
 
-- **High scores (4-5)**: Interested topics
-- **Medium scores (3)**: Neutral topics
-- **Low scores (1-2)**: Topics to avoid
+- **Positive scores (1-5)**: Topics you like
+- **Negative scores (-1 to -5)**: Topics you dislike
+- **Zero score (0)**: Neutral topics
 
 **Example preferences:**
 ```json
 {
-  "technology": 5,
-  "ai": 5,
-  "machine learning": 4,
-  "politics": 1,
-  "celebrity gossip": 1,
-  "space exploration": 3,
-  "climate change": 3
+  "artificial intelligence": {
+    "score": 5,
+    "embedding": [0.1, 0.2, ...]
+  },
+  "ai": {
+    "score": 5,
+    "embedding": [0.15, 0.25, ...]
+  },
+  "gaming": {
+    "score": 4,
+    "embedding": [0.12, 0.18, ...]
+  },
+  "politics": {
+    "score": -5,
+    "embedding": [0.08, 0.22, ...]
+  }
 }
 ```
 
-Each keyword is weighted from 1-5, and the weighting evolves over time based on the rating an article recieves:
+#### ⭐ Rating System
 
-**Rating System**: Rate articles 1-3 stars (1=dislike, 2=neutral, 3=like)
+Rate articles via email links using a **3-star system**:
+- **🤩 3 stars**: Like the article
+- **😐 2 stars**: Neutral/indifferent
+- **🤢 1 star**: Dislike the article
 
-**How it learns:**
-- Rate articles via email links (1-3 stars)
-- AI extracts relevant keywords from article content
-- Updates preference weights based on your rating
-- Future article selection uses these preferences
+#### 🧠 How it learns
+
+The system uses **semantic embeddings** to understand content similarity:
+
+1. **Rate articles** via email links (1-3 stars)
+2. **AI extracts keywords** from article content
+3. **Updates preferences** based on your rating:
+   - **3 stars**: Boosts similar topics (+1 to +4 score)
+   - **2 stars**: No change (neutral)
+   - **1 star**: Reduces similar topics (-1 to -4 score)
+4. **Semantic matching** finds similar existing preferences
+5. **Future selection** uses these learned preferences
+
+------
 
 ### 🛠️ Local Development
 
