@@ -5,6 +5,7 @@ from newspaper import Article
 from config import Config
 from logger import get_logger
 from _types import PreferencesWithEmbeddings
+from zod import Zod, ZodError
 
 
 class AIService:
@@ -13,6 +14,18 @@ class AIService:
         self.client = openai.OpenAI(api_key=config.openai_api_key)
         self.logger = get_logger()
 
+        self.select_article_schema = Zod.object({
+            "index": Zod.number().int().min(0)
+        })
+
+        self.sanitize_content_schema = Zod.object({
+            "title": Zod.string(),
+            "summary": Zod.string(),
+            "use_generic": Zod.boolean()
+        })
+
+        self.extract_keywords_schema = Zod.string()
+
     def select_best_article(self, articles: list, preferences) -> dict:
         if not articles or len(articles) == 0:
             return None
@@ -20,7 +33,6 @@ class AIService:
         article_texts = [f"Title: {a['title']}\nDescription: {a['description']}" for a in articles[:10]]
         self.logger.info(f"🔍  Selecting the best article from the top {len(article_texts)} articles")
 
-        # Convert preferences to JSON string if it's a dict
         preferences_json = json.dumps(preferences) if isinstance(preferences, dict) else preferences
 
         response = self.client.chat.completions.create(
@@ -55,13 +67,21 @@ Use these preferences to guide your selection. Higher scored keywords (4,5) indi
 
         function_call = response.choices[0].message.function_call
         if function_call and function_call.name == "select_article":
-            args = json.loads(function_call.arguments)
-            index = args.get("index", 0)
+            try:
+                args = json.loads(function_call.arguments)
+                validated_args = self.select_article_schema.parse(args)
+                index = validated_args["index"]
 
-            if 0 <= index < len(articles):
-                return articles[index]
-            else:
-                self.logger.warning(f"❌  AI returned invalid index {index}, using first article")
+                if 0 <= index < len(articles):
+                    return articles[index]
+                else:
+                    self.logger.warning(f"❌  AI returned invalid index {index}, using first article")
+                    return articles[0]
+            except ZodError as e:
+                self.logger.error(f"❌  Invalid function response format: {e}")
+                return articles[0]
+            except json.JSONDecodeError as e:
+                self.logger.error(f"❌  Failed to parse function arguments: {e}")
                 return articles[0]
         else:
             self.logger.warning("❌  AI didn't return structured response, using first article")
@@ -257,12 +277,20 @@ Examples of what to avoid: violence, graphic content, controversial political to
 
             function_call = response.choices[0].message.function_call
             if function_call and function_call.name == "sanitize_content":
-                args = json.loads(function_call.arguments)
-                return {
-                    "title": args.get("title", title),
-                    "summary": args.get("summary", summary),
-                    "use_generic": args.get("use_generic", False)
-                }
+                try:
+                    args = json.loads(function_call.arguments)
+                    validated_args = self.sanitize_content_schema.parse(args)
+                    return {
+                        "title": validated_args["title"],
+                        "summary": validated_args["summary"],
+                        "use_generic": validated_args["use_generic"]
+                    }
+                except ZodError as e:
+                    self.logger.error(f"❌  Invalid sanitization response format: {e}")
+                    return {"title": title, "summary": summary, "use_generic": False}
+                except json.JSONDecodeError as e:
+                    self.logger.error(f"❌  Failed to parse sanitization arguments: {e}")
+                    return {"title": title, "summary": summary, "use_generic": False}
             else:
                 self.logger.warning("❌  AI didn't return structured sanitization response")
                 return {"title": title, "summary": summary, "use_generic": False}
