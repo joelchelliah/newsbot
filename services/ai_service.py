@@ -5,7 +5,6 @@ from newspaper import Article
 from config import Config
 from logger import get_logger
 from _types import PreferencesWithEmbeddings
-from zod import Zod, ZodError
 
 
 class AIService:
@@ -14,17 +13,6 @@ class AIService:
         self.client = openai.OpenAI(api_key=config.openai_api_key)
         self.logger = get_logger()
 
-        self.select_article_schema = Zod.object({
-            "index": Zod.number().int().min(0)
-        })
-
-        self.sanitize_content_schema = Zod.object({
-            "title": Zod.string(),
-            "summary": Zod.string(),
-            "use_generic": Zod.boolean()
-        })
-
-        self.extract_keywords_schema = Zod.string()
 
     def select_best_article(self, articles: list, preferences) -> dict:
         if not articles or len(articles) == 0:
@@ -69,15 +57,16 @@ Use these preferences to guide your selection. Higher scored keywords (4,5) indi
         if function_call and function_call.name == "select_article":
             try:
                 args = json.loads(function_call.arguments)
-                validated_args = self.select_article_schema.parse(args)
-                index = validated_args["index"]
+                index = args.get("index")
+                if not isinstance(index, int) or index < 0:
+                    raise ValueError("Invalid index")
 
                 if 0 <= index < len(articles):
                     return articles[index]
                 else:
                     self.logger.warning(f"❌  AI returned invalid index {index}, using first article")
                     return articles[0]
-            except ZodError as e:
+            except ValueError as e:
                 self.logger.error(f"❌  Invalid function response format: {e}")
                 return articles[0]
             except json.JSONDecodeError as e:
@@ -279,17 +268,15 @@ Examples of what to avoid: violence, graphic content, controversial political to
             if function_call and function_call.name == "sanitize_content":
                 try:
                     args = json.loads(function_call.arguments)
-                    validated_args = self.sanitize_content_schema.parse(args)
+                    if not isinstance(args.get("title"), str) or not isinstance(args.get("summary"), str) or not isinstance(args.get("use_generic"), bool):
+                        raise ValueError("Invalid response format")
                     return {
-                        "title": validated_args["title"],
-                        "summary": validated_args["summary"],
-                        "use_generic": validated_args["use_generic"]
+                        "title": args["title"],
+                        "summary": args["summary"],
+                        "use_generic": args["use_generic"]
                     }
-                except ZodError as e:
+                except (ValueError, KeyError) as e:
                     self.logger.error(f"❌  Invalid sanitization response format: {e}")
-                    return {"title": title, "summary": summary, "use_generic": False}
-                except json.JSONDecodeError as e:
-                    self.logger.error(f"❌  Failed to parse sanitization arguments: {e}")
                     return {"title": title, "summary": summary, "use_generic": False}
             else:
                 self.logger.warning("❌  AI didn't return structured sanitization response")
