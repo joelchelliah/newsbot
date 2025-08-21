@@ -175,29 +175,7 @@ Return only the keywords as a comma-separated list, no explanations."""},
             return current_preferences or {}
 
     def generate_image(self, article_title: str, summary: str) -> str:
-        try:
-            sanitized_content = self._ai_sanitize_for_image(article_title, summary)
-
-            if sanitized_content.get('use_generic', False):
-                self.logger.info("⚠️  AI flagged content as too sensitive, using generic image prompt")
-                prompt = """Create a fun, cartoon-style illustration for a news article.
-
-Style: Cartoon, comic, friendly, colorful, engaging, professional but playful
-Format: Digital illustration, suitable for email header
-Tone: Light and engaging, not too serious
-Size: Wide format, suitable for email header (2:1 ratio)
-Content: Generic news reading scene with newspapers, coffee, and reading glasses"""
-            else:
-                prompt = f"""Create a fun, cartoon-style illustration for a news article.
-
-Article Title: {sanitized_content['title']}
-Summary: {sanitized_content['summary']}
-
-Style: Cartoon, comic, friendly, colorful, engaging, professional but playful
-Format: Digital illustration, suitable for email header
-Tone: Light and engaging, not too serious
-Size: Wide format, suitable for email header (2:1 ratio)"""
-
+        def _generate_with_prompt(prompt: str) -> str:
             response = self.client.images.generate(
                 model="dall-e-3",
                 prompt=prompt,
@@ -205,86 +183,49 @@ Size: Wide format, suitable for email header (2:1 ratio)"""
                 quality="standard",
                 n=1,
             )
-
             if response.data and len(response.data) > 0:
-                image_url = response.data[0].url
-                self.logger.info("🎨  Generated image for article")
-                return image_url
-            else:
-                self.logger.warning("❌  Failed to generate image")
-                return ""
-
-        except Exception as e:
-            self.logger.error(f"❌  Error generating image: {e}")
+                return response.data[0].url
             return ""
 
-    def _ai_sanitize_for_image(self, title: str, summary: str) -> dict:
         try:
-            response = self.client.chat.completions.create(
-                model=self.config.openai_model,
-                messages=[
-                    {"role": "system", "content": """You are an AI that sanitizes news content for image generation to avoid content policy violations.
+            specific_prompt = f"""Create a fun, cartoon-style illustration for a news article.
 
-Your task is to:
-1. Clean the title and summary to make them suitable for DALL-E image generation
-2. Replace problematic terms with safer alternatives
-3. If content is too sensitive/violent/controversial, flag it for generic image use
-4. Maintain the core meaning while making it image-generation friendly
+Article Title: {article_title}
+Summary: {summary}
 
-Return a JSON object with:
-- "title": cleaned title
-- "summary": cleaned summary
-- "use_generic": true if content is too sensitive for specific images, false otherwise
+Style: Cartoon, comic, friendly, colorful, engaging, professional but playful
+Format: Digital illustration, suitable for email header
+Tone: Light and engaging, not too serious
+Size: Wide format, suitable for email header (2:1 ratio)"""
 
-Examples of what to avoid: violence, graphic content, controversial political topics, sensitive personal issues"""},
-                    {"role": "user", "content": f"Please sanitize this content for image generation:\nTitle: {title}\nSummary: {summary}"}
-                ],
-                functions=[{
-                    "name": "sanitize_content",
-                    "description": "Sanitize content for image generation",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "title": {
-                                "type": "string",
-                                "description": "Cleaned title suitable for image generation"
-                            },
-                            "summary": {
-                                "type": "string",
-                                "description": "Cleaned summary suitable for image generation"
-                            },
-                            "use_generic": {
-                                "type": "boolean",
-                                "description": "True if content is too sensitive and should use generic image"
-                            }
-                        },
-                        "required": ["title", "summary", "use_generic"]
-                    }
-                }],
-                function_call={"name": "sanitize_content"}
-            )
-
-            function_call = response.choices[0].message.function_call
-            if function_call and function_call.name == "sanitize_content":
-                try:
-                    args = json.loads(function_call.arguments)
-                    if not isinstance(args.get("title"), str) or not isinstance(args.get("summary"), str) or not isinstance(args.get("use_generic"), bool):
-                        raise ValueError("Invalid response format")
-                    return {
-                        "title": args["title"],
-                        "summary": args["summary"],
-                        "use_generic": args["use_generic"]
-                    }
-                except (ValueError, KeyError) as e:
-                    self.logger.error(f"❌  Invalid sanitization response format: {e}")
-                    return {"title": title, "summary": summary, "use_generic": False}
-            else:
-                self.logger.warning("❌  AI didn't return structured sanitization response")
-                return {"title": title, "summary": summary, "use_generic": False}
+            image_url = _generate_with_prompt(specific_prompt)
+            if image_url:
+                self.logger.info("🎨  Generated specific image for article")
+                return image_url
 
         except Exception as e:
-            self.logger.error(f"❌  Error sanitizing content with AI: {e}")
-            return {"title": title, "summary": summary, "use_generic": False}
+            self.logger.warning(f"⚠️  Failed to generate specific image ({e}), trying generic image")
+
+        try:
+            # Fall back to generic image if specific generation fails
+            generic_prompt = """Create a fun, cartoon-style illustration for a news article.
+
+Style: Cartoon, comic, friendly, colorful, engaging, professional but playful
+Format: Digital illustration, suitable for email header
+Tone: Light and engaging, not too serious
+Size: Wide format, suitable for email header (2:1 ratio)
+Content: Generic news reading scene with newspapers, coffee, and reading glasses"""
+
+            image_url = _generate_with_prompt(generic_prompt)
+            if image_url:
+                self.logger.info("🎨  Generated generic image for article")
+                return image_url
+
+        except Exception as e:
+            self.logger.error(f"❌  Failed to generate generic image: {e}")
+
+        return ""
+
 
     def select_best_article_with_embeddings(self, articles: list, preferences_with_embeddings: PreferencesWithEmbeddings) -> dict:
         """Select best article using embedding-based similarity"""
