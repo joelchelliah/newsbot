@@ -3,13 +3,14 @@ from logger import get_logger
 from supabase import create_client, Client
 import json
 from _types import PreferencesWithEmbeddings
+from typing import Dict, List, Union, Any
 
 
 class PreferencesStore:
     _instance = None
     _initialized = False
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args: Any, **kwargs: Any) -> 'PreferencesStore':
         if cls._instance is None:
             cls._instance = super(PreferencesStore, cls).__new__(cls)
         return cls._instance
@@ -27,7 +28,7 @@ class PreferencesStore:
             PreferencesStore._initialized = True
             self.logger.info("✅  PreferencesStore initialized")
 
-    def get_preferences(self) -> dict:
+    def get_preferences(self) -> Dict:
         try:
             response = self.supabase.table('preferences').select('preferences').eq('is_latest', True).execute()
 
@@ -41,7 +42,7 @@ class PreferencesStore:
             self.logger.error(f"❌  Failed to get preferences from Supabase: {e}. Using default.")
             return self._parse_config_default()
 
-    def get_history(self) -> list:
+    def get_history(self) -> List[str]:
         try:
             response = self.supabase.table('preferences').select('preferences, version, created_at').order('version', desc=True).limit(20).execute()
 
@@ -55,7 +56,7 @@ class PreferencesStore:
             self.logger.error(f"❌  Failed to get preferences history from Supabase: {e}")
             return []
 
-    def update_preferences(self, new_preferences) -> bool:
+    def update_preferences(self, new_preferences: Union[Dict, str]) -> bool:
         try:
             # Handle both dict and string inputs
             if isinstance(new_preferences, str):
@@ -125,7 +126,7 @@ class PreferencesStore:
             self.logger.error(f"❌  Failed to save preferences with embeddings to Supabase: {e}")
             return False
 
-    def _parse_config_default(self) -> dict:
+    def _parse_config_default(self) -> Dict:
         try:
             with open('default_preferences.json', 'r') as f:
                 default_prefs = json.load(f)

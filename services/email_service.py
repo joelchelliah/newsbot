@@ -2,21 +2,23 @@ from email.message import EmailMessage
 import smtplib
 import textwrap
 from logger import get_logger
+from typing import Dict, Optional
+from config import Config
 
 
 class EmailService:
-    def __init__(self, config):
+    def __init__(self, config: Config):
         self.config = config
         self.logger = get_logger()
 
-    def send_email(self, article, summary, summary_id, subject, image_url=None):
+    def send_email(self, article: Dict, summary: str, summary_id: str, subject: str, image_url: Optional[str] = None) -> None:
         body = self._create_body(article, summary)
         body_html = self._create_html_body(article, summary, summary_id, image_url)
 
         self._send(subject, body, body_html)
         self.logger.info("📧   News email sent successfully!")
 
-    def _create_body(self, article, summary):
+    def _create_body(self, article: Dict, summary: str) -> str:
         return textwrap.dedent(f"""
             {article['title']}
 
@@ -27,7 +29,7 @@ class EmailService:
             {article['url']}
         """)
 
-    def _create_html_body(self, article, summary, summary_id, image_url=None):
+    def _create_html_body(self, article: Dict, summary: str, summary_id: str, image_url: Optional[str] = None) -> str:
         domain = self.config.domain
 
         return f"""
@@ -91,7 +93,7 @@ class EmailService:
             </html>
         """
 
-    def _send(self, subject, body, body_html):
+    def _send(self, subject: str, body: str, body_html: str) -> None:
         msg = EmailMessage()
         msg["Subject"] = subject
         msg["From"] = self.config.from_email

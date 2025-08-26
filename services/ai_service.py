@@ -5,6 +5,7 @@ from newspaper import Article
 from config import Config
 from logger import get_logger
 from _types import PreferencesWithEmbeddings
+from typing import List, Dict, Optional, Union, Any
 
 
 class AIService:
@@ -14,7 +15,7 @@ class AIService:
         self.logger = get_logger()
 
 
-    def select_best_article(self, articles: list, preferences) -> dict:
+    def select_best_article(self, articles: List[Dict], preferences: Union[Dict, str]) -> Optional[Dict]:
         if not articles or len(articles) == 0:
             return None
 
@@ -58,18 +59,12 @@ Use these preferences to guide your selection. Higher scored keywords (4,5) indi
             try:
                 args = json.loads(function_call.arguments)
                 index = args.get("index")
-                if not isinstance(index, int) or index < 0:
-                    raise ValueError("Invalid index")
-
-                if 0 <= index < len(articles):
-                    return articles[index]
-                else:
+                if not isinstance(index, int) or index < 0 or index >= len(articles):
                     self.logger.warning(f"❌  AI returned invalid index {index}, using first article")
                     return articles[0]
-            except ValueError as e:
-                self.logger.error(f"❌  Invalid function response format: {e}")
-                return articles[0]
-            except json.JSONDecodeError as e:
+
+                return articles[index]
+            except (ValueError, json.JSONDecodeError) as e:
                 self.logger.error(f"❌  Failed to parse function arguments: {e}")
                 return articles[0]
         else:
@@ -104,7 +99,7 @@ Use these preferences to guide your selection. Higher scored keywords (4,5) indi
         )
         return self._parse_response(response, "summarize_article")
 
-    def update_preferences_from_rating(self, current_preferences: dict, rating: int, article_summary: str) -> dict:
+    def update_preferences_from_rating(self, current_preferences: Dict, rating: int, article_summary: str) -> Dict:
         try:
             current_prefs = current_preferences or {}
 
@@ -227,15 +222,15 @@ Content: Generic news reading scene with newspapers, coffee, and reading glasses
         return ""
 
 
-    def select_best_article_with_embeddings(self, articles: list, preferences_with_embeddings: PreferencesWithEmbeddings) -> dict:
+    def select_best_article_with_embeddings(self, articles: List[Dict], preferences_with_embeddings: PreferencesWithEmbeddings) -> Optional[Dict]:
         """Select best article using embedding-based similarity"""
         if not articles or len(articles) == 0:
             return None
 
         self.logger.info(f"🔍 Selecting best article using embeddings from {len(articles)} articles")
 
-        best_article = None
-        best_score = -1
+        best_article = articles[0]  # Always have a fallback
+        best_score = float('-inf')  # Start with lowest possible score
 
         for article in articles:
             # Create text representation of article
@@ -262,9 +257,7 @@ Content: Generic news reading scene with newspapers, coffee, and reading glasses
                 best_score = total_score
                 best_article = article
 
-        if best_article:
-            self.logger.info(f"✅ Selected article with embeddings: {best_article['title']} (score: {best_score:.3f})")
-
+        self.logger.info(f"✅ Selected article with embeddings: {best_article['title']} (score: {best_score:.3f})")
         return best_article
 
     def update_preferences_from_rating_with_embeddings(self, current_preferences: PreferencesWithEmbeddings, rating: int, article_summary: str) -> PreferencesWithEmbeddings:
@@ -302,7 +295,7 @@ Content: Generic news reading scene with newspapers, coffee, and reading glasses
             self.logger.error(f"❌ Error updating preferences from rating with embeddings: {e}")
             return current_preferences or {}
 
-    def _extract_relevant_keywords_from_text(self, text: str, current_keywords: list[str]) -> list[str]:
+    def _extract_relevant_keywords_from_text(self, text: str, current_keywords: List[str]) -> List[str]:
         """Extract, clean, and normalize relevant keywords from text"""
         try:
             response = self.client.chat.completions.create(
@@ -346,7 +339,7 @@ Return only the keywords as a comma-separated list, no explanations."""},
             self.logger.error(f"❌ Error extracting keywords: {e}")
             return []
 
-    def _find_preferences_with_similar_embeddings(self, current_preferences: PreferencesWithEmbeddings, article_embedding: list[float]) -> dict:
+    def _find_preferences_with_similar_embeddings(self, current_preferences: PreferencesWithEmbeddings, article_embedding: List[float]) -> Dict:
         """Find existing preferences that are semantically similar to the article"""
         similar_preferences = {}
 
@@ -362,7 +355,7 @@ Return only the keywords as a comma-separated list, no explanations."""},
 
         return similar_preferences
 
-    def _update_preferences_based_on_embeddings_and_keywords(self, current_preferences: PreferencesWithEmbeddings, similar_preferences: dict, extracted_keywords: list[str], rating: int) -> PreferencesWithEmbeddings:
+    def _update_preferences_based_on_embeddings_and_keywords(self, current_preferences: PreferencesWithEmbeddings, similar_preferences: Dict, extracted_keywords: List[str], rating: int) -> PreferencesWithEmbeddings:
         """Update preferences based on article similarity and extracted keywords"""
         updated_prefs = current_preferences.copy()
         updated_preference_keys = set()
@@ -416,7 +409,7 @@ Return only the keywords as a comma-separated list, no explanations."""},
         else:  # rating == 2
             return 0  # Neutral score (no preference)
 
-    def _handle_existing_keyword_update(self, updated_prefs: PreferencesWithEmbeddings, current_prefs: PreferencesWithEmbeddings, updated_preference_keys: set, keyword: str, rating: int):
+    def _handle_existing_keyword_update(self, updated_prefs: PreferencesWithEmbeddings, current_prefs: PreferencesWithEmbeddings, updated_preference_keys: set, keyword: str, rating: int) -> None:
         """Handle updating an existing keyword preference"""
         # Check for semantic similarity first
         keyword_updated = self._update_similar_preferences_via_keyword(
@@ -453,7 +446,7 @@ Return only the keywords as a comma-separated list, no explanations."""},
 
         return False
 
-    def cosine_similarity(self, vector_a: list[float], vector_b: list[float]) -> float:
+    def cosine_similarity(self, vector_a: List[float], vector_b: List[float]) -> float:
         try:
             # Convert to numpy arrays
             a = np.array(vector_a)
@@ -477,7 +470,7 @@ Return only the keywords as a comma-separated list, no explanations."""},
             self.logger.error(f"❌  Error calculating cosine similarity: {e}. Returning 0.0.")
             return 0.0
 
-    def _update_keyword_score(self, updated_prefs: PreferencesWithEmbeddings, keyword: str, rating: int):
+    def _update_keyword_score(self, updated_prefs: PreferencesWithEmbeddings, keyword: str, rating: int) -> None:
         if isinstance(updated_prefs[keyword], dict) and "score" in updated_prefs[keyword]:
             current_score = updated_prefs[keyword]["score"]
         else:
@@ -509,7 +502,7 @@ Return only the keywords as a comma-separated list, no explanations."""},
         else:  # rating == 2
             return current_score  # no change
 
-    def get_embedding(self, text: str) -> list[float]:
+    def get_embedding(self, text: str) -> List[float]:
         try:
             response = self.client.embeddings.create(
                 model="text-embedding-3-small",
@@ -523,7 +516,7 @@ Return only the keywords as a comma-separated list, no explanations."""},
             self.logger.error(f"❌  Error getting embedding: {e}. Returning zero vector.")
             return [0.0] * 1536
 
-    def _parse_response(self, response, function_name: str = "unknown") -> str:
+    def _parse_response(self, response: Any, function_name: str = "unknown") -> str:
         try:
             if response and response.choices and len(response.choices) > 0:
                 return response.choices[0].message.content.strip()

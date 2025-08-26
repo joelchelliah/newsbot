@@ -1,7 +1,7 @@
 import logging
 import os
 
-def get_logger():
+def get_logger() -> logging.Logger:
     logger = logging.getLogger("NEWSBOT")
 
     log_level_from_env = os.getenv("LOG_LEVEL", "INFO").upper()

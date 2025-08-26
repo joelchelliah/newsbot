@@ -3,13 +3,14 @@ import datetime
 from logger import get_logger
 from supabase import create_client, Client
 from config import Config
+from typing import Optional, Any
 
 
 class SummariesStore:
     _instance = None
     _initialized = False
 
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args: Any, **kwargs: Any) -> 'SummariesStore':
         if cls._instance is None:
             cls._instance = super(SummariesStore, cls).__new__(cls)
         return cls._instance
@@ -45,7 +46,7 @@ class SummariesStore:
             self.logger.error(f"❌  Failed to store summary in Supabase: {e}")
             return ""
 
-    def get_summary(self, summary_id: str) -> str:
+    def get_summary(self, summary_id: str) -> Optional[str]:
         try:
             response = self.supabase.table('summaries').select('summary').eq('id', summary_id).execute()
 
@@ -59,7 +60,7 @@ class SummariesStore:
             self.logger.error(f"❌  Failed to get summary from Supabase: {e}")
             return ''
 
-    def cleanup_old_summaries(self):
+    def cleanup_old_summaries(self) -> None:
         try:
             cutoff_time = datetime.datetime.now().isoformat()
             response = self.supabase.table('summaries').delete().lt('expires_at', cutoff_time).execute()

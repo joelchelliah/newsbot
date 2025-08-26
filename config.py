@@ -24,6 +24,8 @@ class Config:
             self.news_api_key,
             self.smtp_password,
             self.from_email,
-            self.to_email
+            self.to_email,
+            self.supabase_url,
+            self.supabase_key,
         ]
         return all(field for field in required_fields)

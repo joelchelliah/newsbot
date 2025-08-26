@@ -2,6 +2,7 @@ import requests
 import datetime
 from config import Config
 from logger import get_logger
+from typing import List, Dict
 
 
 class NewsApiService:
@@ -9,7 +10,7 @@ class NewsApiService:
         self.config = config
         self.logger = get_logger()
 
-    def fetch_top_news_articles(self, days_back: int = 1) -> list:
+    def fetch_top_news_articles(self, days_back: int = 1) -> List[Dict]:
         today = datetime.date.today()
         from_date = today - datetime.timedelta(days=days_back)
 

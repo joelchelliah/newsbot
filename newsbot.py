@@ -1,20 +1,21 @@
 from config import Config
 from logger import get_logger
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, Response
 import os
 from services import AIService, NewsApiService, EmailService
 from stores import SummariesStore, PreferencesStore
 from _types import PreferencesWithEmbeddings
+from typing import Union, Tuple
 
 app = Flask(__name__)
 
 @app.route('/')
-def health_check():
+def health_check() -> Response:
     return jsonify({"status": "healthy", "message": "NewsBot is running"})
 
 
 @app.route('/trigger', methods=['POST'])
-def trigger_newsbot():
+def trigger_newsbot() -> Union[Response, Tuple[Response, int]]:
     try:
         logger = get_logger()
         logger.info("🤖  Triggering the NewsBot")
@@ -54,7 +55,7 @@ def trigger_newsbot():
 
 
 @app.route('/preferences', methods=['GET'])
-def get_preferences():
+def get_preferences() -> PreferencesWithEmbeddings:
     preferences_store = PreferencesStore(Config())
     preferences = preferences_store.get_preferences_with_embeddings()
 
@@ -62,7 +63,7 @@ def get_preferences():
 
 
 @app.route('/preferences/history', methods=['GET'])
-def get_preferences_history():
+def get_preferences_history() -> Response:
     preferences_store = PreferencesStore(Config())
     history = preferences_store.get_history()
 
@@ -70,7 +71,7 @@ def get_preferences_history():
 
 
 @app.route('/preferences', methods=['POST'])
-def update_preferences():
+def update_preferences() -> Union[Response, Tuple[Response, int]]:
     try:
         data = request.get_json()
         new_preferences = data.get('preferences', '')
@@ -92,7 +93,7 @@ def update_preferences():
 
 
 @app.route('/r<int:rating>/<summary_id>', methods=['GET'])
-def submit_rating(rating, summary_id):
+def submit_rating(rating: int, summary_id: str) -> Union[Response, str, Tuple[Response, int]]:
     try:
         if rating < 1 or rating > 3:
             return jsonify({"status": "error", "message": "Rating must be between 1 and 3"}), 400
@@ -142,7 +143,7 @@ def submit_rating(rating, summary_id):
 
 
 @app.errorhandler(404)
-def not_found(error):
+def not_found(_: Exception) -> Tuple[Response, int]:
     return jsonify({"error": "Not found"}), 404
 
 

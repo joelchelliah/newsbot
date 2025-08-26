@@ -10,7 +10,7 @@ from stores.preferences_store import PreferencesStore
 from logger import get_logger
 from _types import PreferencesWithEmbeddings
 
-def test_embeddings():
+def test_embeddings() -> None:
     """Test the embedding functionality"""
     logger = get_logger()
     logger.info("🧪 Testing embedding functionality...")
