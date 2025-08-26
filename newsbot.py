@@ -2,6 +2,7 @@ from config import Config
 from logger import get_logger
 from flask import Flask, jsonify, request, Response
 import os
+import threading
 from services import AIService, NewsApiService, EmailService
 from stores import SummariesStore, PreferencesStore
 from _types import PreferencesWithEmbeddings
@@ -74,38 +75,47 @@ def submit_rating(rating: int, summary_id: str) -> Union[Response, str, Tuple[Re
         if not article_summary:
             return jsonify({"status": "error", "message": "Summary not found or expired"}), 404
 
-        ai_service = AIService(config)
-        preferences_store = PreferencesStore(config)
+        def update_preferences_async():
+            try:
+                logger = get_logger()
+                logger.info(f"🔄 Starting async preference update for {rating}-star rating")
 
-        current_preferences: PreferencesWithEmbeddings = preferences_store.get_preferences_with_embeddings()
-        updated_preferences: PreferencesWithEmbeddings = ai_service.update_preferences_from_rating_with_embeddings(
-            current_preferences, rating, article_summary
-        )
+                ai_service = AIService(config)
+                preferences_store = PreferencesStore(config)
 
-        if updated_preferences:
-            success = preferences_store.update_preferences_with_embeddings(updated_preferences)
-            if success:
-                return f"""
-                <html>
-                <head>
-                    <title>Rating Submitted</title>
-                    <style>
-                        body {{ font-family: Arial, sans-serif; text-align: center; padding: 50px; }}
-                        .success {{ color: green; font-size: 18px; }}
-                        .message {{ margin: 20px 0; }}
-                    </style>
-                </head>
-                <body>
-                    <div class="success">✅ Thank you for your {rating}-star rating!</div>
-                    <div class="message">Your preferences have been updated to improve future recommendations.</div>
-                    <div class="message">You can close this window now.</div>
-                </body>
-                </html>
-                """
-            else:
-                return jsonify({"status": "error", "message": "Failed to save updated preferences"}), 500
-        else:
-            return jsonify({"status": "error", "message": "Failed to update preferences"}), 500
+                current_preferences: PreferencesWithEmbeddings = preferences_store.get_preferences_with_embeddings()
+                updated_preferences: PreferencesWithEmbeddings = ai_service.update_preferences_from_rating_with_embeddings(
+                    current_preferences, rating, article_summary
+                )
+
+                if updated_preferences:
+                    success = preferences_store.update_preferences_with_embeddings(updated_preferences)
+                    if success:
+                        logger.info(f"✅ Successfully updated preferences for {rating}-star rating")
+                    else:
+                        logger.error(f"❌ Failed to save updated preferences for {rating}-star rating")
+                else:
+                    logger.error(f"❌ Failed to update preferences for {rating}-star rating")
+            except Exception as background_error:
+                logger = get_logger()
+                logger.error(f"❌ Async preference update failed: {background_error}")
+
+        threading.Thread(target=update_preferences_async, daemon=True).start()
+
+        return f"""
+        <html>
+        <head>
+            <title>Rating Submitted</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; text-align: center; padding: 50px; }}
+                .success {{ color: green; font-size: 18px; margin: 20px 0; }}
+            </style>
+        </head>
+        <body>
+            <div class="success">✅ {rating}-star rating submitted!</div>
+        </body>
+        </html>
+        """
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
