@@ -11,7 +11,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Trigger NewsBot
-        run: |
-          curl -X POST ${{ secrets.RENDER_WEBHOOK_URL }}
         env:
-          RENDER_WEBHOOK_URL: ${{ secrets.RENDER_WEBHOOK_URL }}
+          RENDER_URL: ${{ vars.RENDER_URL }}
+        run: |
+          echo "Triggering NewsBot at: $RENDER_URL/trigger"
+          
+          response=$(curl -s -X POST "$RENDER_URL/trigger" \
+            -H "Content-Type: application/json" \
+            -w "HTTP_STATUS:%{http_code}" \
+            --max-time 60)
+          
+          http_status=$(echo "$response" | grep -o "HTTP_STATUS:[0-9]*" | cut -d: -f2)
+          response_body=$(echo "$response" | sed 's/HTTP_STATUS:[0-9]*$//')
+          
+          echo "HTTP Status: $http_status"
+          echo "Response: $response_body"
+          
+          if [[ "$http_status" == "200" || "$http_status" == "500" ]]; then
+            echo "✅ NewsBot triggered successfully"
+          else
+            echo "❌ Failed to trigger NewsBot (HTTP $http_status)"
+            exit 1
+          fi

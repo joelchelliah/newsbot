@@ -23,7 +23,7 @@ def trigger_newsbot() -> Union[Response, Tuple[Response, int]]:
         config = Config()
         if not config.validate():
             logger.error("⚠️  Missing required environment variables")
-            return
+            return jsonify({"status": "error", "message": "Missing required environment variables"}), 500
 
         ai_service = AIService(config)
         news_service = NewsApiService(config)
