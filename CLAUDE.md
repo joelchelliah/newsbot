@@ -54,15 +54,13 @@ python3 run_tests.py
 ### Environment Variables Required
 - `OPENAI_API_KEY`: OpenAI API access
 - `NEWS_API_KEY`: NewsAPI.org access
-- `FROM_EMAIL`, `TO_EMAIL`, `SMTP_PASS`: Gmail SMTP configuration  
+- `FROM_EMAIL`, `TO_EMAIL`, `SMTP_PASS`: Gmail SMTP configuration
 - `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`: Supabase database access
 - `NEWSBOT_DEFAULT_PREFERENCES`: Initial preferences JSON (optional)
 
 ### API Endpoints
 - `POST /trigger`: Main newsbot execution (fetch, select, summarize, email)
 - `GET /preferences`: Retrieve current preferences with embeddings
-- `GET /preferences/history`: Get preference update history
-- `POST /preferences`: Update preferences
 - `GET /r<rating>/<summary_id>`: Submit article rating (1-3 stars)
 
 ### Dependencies

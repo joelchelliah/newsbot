@@ -61,37 +61,6 @@ def get_preferences() -> PreferencesWithEmbeddings:
 
     return preferences
 
-
-@app.route('/preferences/history', methods=['GET'])
-def get_preferences_history() -> Response:
-    preferences_store = PreferencesStore(Config())
-    history = preferences_store.get_history()
-
-    return jsonify({"count": len(history), "history": history})
-
-
-@app.route('/preferences', methods=['POST'])
-def update_preferences() -> Union[Response, Tuple[Response, int]]:
-    try:
-        data = request.get_json()
-        new_preferences = data.get('preferences', '')
-
-        preferences_store = PreferencesStore(Config())
-        success = preferences_store.update_preferences(new_preferences)
-
-        if success:
-            updated_prefs = preferences_store.get_preferences_with_embeddings()
-            return jsonify({
-                "status": "success",
-                "message": "Preferences updated and saved",
-                "preferences": updated_prefs
-            })
-        else:
-            return jsonify({"status": "error", "message": "Failed to save preferences"}), 500
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
 @app.route('/r<int:rating>/<summary_id>', methods=['GET'])
 def submit_rating(rating: int, summary_id: str) -> Union[Response, str, Tuple[Response, int]]:
     try:

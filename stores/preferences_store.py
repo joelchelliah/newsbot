@@ -3,7 +3,7 @@ from logger import get_logger
 from supabase import create_client, Client
 import json
 from _types import PreferencesWithEmbeddings
-from typing import Dict, List, Union, Any
+from typing import Dict, Any
 
 
 class PreferencesStore:
@@ -27,60 +27,6 @@ class PreferencesStore:
 
             PreferencesStore._initialized = True
             self.logger.info("✅  PreferencesStore initialized")
-
-    def get_preferences(self) -> Dict:
-        try:
-            response = self.supabase.table('preferences').select('preferences').eq('is_latest', True).execute()
-
-            if response.data and len(response.data) > 0:
-                return response.data[0]['preferences']
-            else:
-                self.logger.warning("🤷  No preferences found in Supabase. Using default.")
-                return self._parse_config_default()
-
-        except Exception as e:
-            self.logger.error(f"❌  Failed to get preferences from Supabase: {e}. Using default.")
-            return self._parse_config_default()
-
-    def get_history(self) -> List[str]:
-        try:
-            response = self.supabase.table('preferences').select('preferences, version, created_at').order('version', desc=True).limit(20).execute()
-
-            if response.data:
-                return [json.dumps(item['preferences']) for item in response.data]
-            else:
-                self.logger.warning("🤷  No preferences history found in Supabase.")
-                return []
-
-        except Exception as e:
-            self.logger.error(f"❌  Failed to get preferences history from Supabase: {e}")
-            return []
-
-    def update_preferences(self, new_preferences: Union[Dict, str]) -> bool:
-        try:
-            # Handle both dict and string inputs
-            if isinstance(new_preferences, str):
-                preferences_dict = json.loads(new_preferences)
-            else:
-                preferences_dict = new_preferences
-
-            response = self.supabase.table('preferences').select('version').order('version', desc=True).limit(1).execute()
-            current_version = 1
-            if response.data and len(response.data) > 0:
-                current_version = response.data[0]['version'] + 1
-
-            self.supabase.table('preferences').update({'is_latest': False}).eq('is_latest', True).execute()
-            self.supabase.table('preferences').insert({
-                'preferences': preferences_dict,
-                'version': current_version,
-                'is_latest': True
-            }).execute()
-
-            return True
-
-        except Exception as e:
-            self.logger.error(f"❌  Failed to save preferences to Supabase: {e}")
-            return False
 
     def get_preferences_with_embeddings(self) -> PreferencesWithEmbeddings:
         try:
@@ -107,20 +53,41 @@ class PreferencesStore:
             else:
                 preferences_dict = new_preferences
 
-            response = self.supabase.table('preferences').select('version').order('version', desc=True).limit(1).execute()
-            current_version = 1
-            if response.data and len(response.data) > 0:
-                current_version = response.data[0]['version'] + 1
+            # Use a more atomic approach with retry logic for race conditions
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    # Get current version in the same operation we'll use for updating
+                    response = self.supabase.table('preferences').select('version').order('version', desc=True).limit(1).execute()
+                    current_version = 1
+                    if response.data and len(response.data) > 0:
+                        current_version = response.data[0]['version'] + 1
 
-            self.supabase.table('preferences').update({'is_latest': False}).eq('is_latest', True).execute()
-            self.supabase.table('preferences').insert({
-                'preferences': preferences_dict,
-                'version': current_version,
-                'is_latest': True
-            }).execute()
+                    # First, set all existing preferences to not latest
+                    self.supabase.table('preferences').update({'is_latest': False}).eq('is_latest', True).execute()
 
-            self.logger.info(f"📝 Saved {len(preferences_dict)} preferences with embeddings to database")
-            return True
+                    # Then insert the new preferences with the incremented version
+                    # If another process inserted the same version, this will fail due to unique constraint
+                    self.supabase.table('preferences').insert({
+                        'preferences': preferences_dict,
+                        'version': current_version,
+                        'is_latest': True
+                    }).execute()
+
+                    self.logger.info(f"📝 Saved {len(preferences_dict)} preferences with embeddings to database (version {current_version})")
+                    return True
+
+                except Exception as insert_error:
+                    if "duplicate" in str(insert_error).lower() or "unique" in str(insert_error).lower():
+                        self.logger.warning(f"Version conflict detected, retrying... (attempt {attempt + 1}/{max_retries})")
+                        if attempt < max_retries - 1:
+                            import time
+                            time.sleep(0.1)  # Brief delay before retry
+                            continue
+                    raise insert_error
+
+            self.logger.error(f"❌  Failed to save preferences after {max_retries} attempts - version conflicts")
+            return False
 
         except Exception as e:
             self.logger.error(f"❌  Failed to save preferences with embeddings to Supabase: {e}")
