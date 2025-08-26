@@ -2,8 +2,8 @@ name: Keep Render Alive
 
 on:
   schedule:
-    # Runs every 10 minutes
-    - cron: '*/10 * * * *'
+    # Runs every 8 minutes
+    - cron: '*/8 * * * *'
   workflow_dispatch: # Allow manual trigger
 
 jobs:
@@ -11,15 +11,36 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ping Render deployment
+        env:
+          RENDER_URL: ${{ vars.RENDER_URL }}
         run: |
-          # Get the Render URL from environment or use a default pattern
-          RENDER_URL="${RENDER_URL}"
+          if [ -z "$RENDER_URL" ]; then
+            echo "❌ RENDER_URL repository variable not found"
+            exit 1
+          fi
 
           echo "Pinging Render deployment at: $RENDER_URL"
-          response=$(curl -s -o /dev/null -w "%{http_code}" "$RENDER_URL" || echo "000")
 
-          if [ "$response" = "200" ] || [ "$response" = "404" ] || [ "$response" = "503" ]; then
-            echo "✅ Successfully pinged Render deployment (HTTP $response)"
-          else
-            echo "⚠️  Ping returned HTTP $response - deployment might be starting up"
-          fi
+          # Try health endpoint first, fallback to root
+          for endpoint in "" "/health"; do
+            url="${RENDER_URL}${endpoint}"
+            echo "Trying: $url"
+
+            response=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$url" 2>/dev/null || echo "000")
+
+            if [ "$response" = "200" ]; then
+              echo "✅ Successfully pinged Render deployment (HTTP $response)"
+              exit 0
+            elif [ "$response" = "404" ] && [ "$endpoint" = "/health" ]; then
+              # Health endpoint not found, trying root...
+              continue
+            elif [ "$response" = "503" ]; then
+              echo "⚠️  Service temporarily unavailable (HTTP $response) - app might be waking up"
+              exit 0
+            else
+              echo "⚠️  Response: HTTP $response"
+            fi
+          done
+
+          echo "❌ Failed to ping deployment"
+          exit 1
