@@ -7,6 +7,50 @@ from logger import get_logger
 from _types import PreferencesWithEmbeddings
 from typing import List, Dict, Optional, Any
 
+# # # # # # # # # # # # PROMPTS # # # # # # # # # # # #
+
+# Generate a subject line for the email
+EMAIL_SUBJECT_LINE_PROMPT = "Create a compelling email subject line (max 40 chars) for a news article."
+
+# Summarize the article
+ARTICLE_SUMMARY_PROMPT = "Summarize the following article in concise and simple language, in 6-10 lines. Include context and key takeaways."
+
+# Extract useful keywords from article summary
+KEYWORD_EXTRACTION_PROMPT = """You are an AI that extracts relevant keywords from news articles.
+
+Here are the current user preferences as examples. The keywords do not need to match these preferences exactly, but should be relevant to the article summary:
+{current_keywords}
+
+Extract 3-8 relevant keywords from the article summary. Focus on:
+- Main topics/themes
+- Content types
+- Subject areas
+- Key concepts
+
+Return only the keywords as a comma-separated list, no explanations."""
+
+# Image generation style instructions
+IMAGE_STYLE_INSTRUCTIONS = """Style: Cartoon, comic, friendly, colorful, engaging, professional but playful
+Format: Digital illustration, suitable for email header
+Tone: Light and engaging, not too serious
+Size: Wide format, suitable for email header (2:1 ratio)"""
+
+# Image specific to the article
+IMAGE_SPECIFIC_PROMPT = """Create a fun, cartoon-style illustration for a news article.
+
+Article Title: {article_title}
+Summary: {summary}
+
+{style_instructions}"""
+
+# Generic image for any article
+IMAGE_GENERIC_PROMPT = """Create a fun, cartoon-style illustration for a news article.
+
+Content: Generic news reading scene with newspapers, coffee, and reading glasses
+
+{style_instructions}"""
+
+# # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
 
 class AIService:
     def __init__(self, config: Config):
@@ -19,7 +63,7 @@ class AIService:
         response = self.client.chat.completions.create(
             model=self.config.openai_model,
             messages=[
-                {"role": "system", "content": "Create a compelling email subject line (max 40 chars) for a news article."},
+                {"role": "system", "content": EMAIL_SUBJECT_LINE_PROMPT},
                 {"role": "user", "content": f"Title: {article_title}\nSummary: {summary}"}
             ],
             max_tokens=45,
@@ -35,7 +79,7 @@ class AIService:
         response = self.client.chat.completions.create(
             model=self.config.openai_model,
             messages=[
-                {"role": "system", "content": "Summarize the following article in concise and simple language, in 6-10 lines. Include context and key takeaways."},
+                {"role": "system", "content": ARTICLE_SUMMARY_PROMPT},
                 {"role": "user", "content": article.text}
             ],
             max_tokens=400,
@@ -57,15 +101,11 @@ class AIService:
             return ""
 
         try:
-            specific_prompt = f"""Create a fun, cartoon-style illustration for a news article.
-
-Article Title: {article_title}
-Summary: {summary}
-
-Style: Cartoon, comic, friendly, colorful, engaging, professional but playful
-Format: Digital illustration, suitable for email header
-Tone: Light and engaging, not too serious
-Size: Wide format, suitable for email header (2:1 ratio)"""
+            specific_prompt = IMAGE_SPECIFIC_PROMPT.format(
+                article_title=article_title,
+                summary=summary,
+                style_instructions=IMAGE_STYLE_INSTRUCTIONS
+            )
 
             image_url = _generate_with_prompt(specific_prompt)
             if image_url:
@@ -77,13 +117,9 @@ Size: Wide format, suitable for email header (2:1 ratio)"""
 
         try:
             # Fall back to generic image if specific generation fails
-            generic_prompt = """Create a fun, cartoon-style illustration for a news article.
-
-Style: Cartoon, comic, friendly, colorful, engaging, professional but playful
-Format: Digital illustration, suitable for email header
-Tone: Light and engaging, not too serious
-Size: Wide format, suitable for email header (2:1 ratio)
-Content: Generic news reading scene with newspapers, coffee, and reading glasses"""
+            generic_prompt = IMAGE_GENERIC_PROMPT.format(
+                style_instructions=IMAGE_STYLE_INSTRUCTIONS
+            )
 
             image_url = _generate_with_prompt(generic_prompt)
             if image_url:
@@ -141,7 +177,6 @@ Content: Generic news reading scene with newspapers, coffee, and reading glasses
             article_summary_embedding = self.get_embedding(article_summary)
 
             # Find existing preferences that are semantically similar to the entire article summary
-            # Overkill?
             existing_prefs_similar_to_article_summary = self._find_preferences_with_similar_embeddings(current_prefs, article_summary_embedding)
 
             current_pref_keywords = list(current_prefs.keys()) if current_prefs else []
@@ -170,23 +205,11 @@ Content: Generic news reading scene with newspapers, coffee, and reading glasses
             return current_preferences or {}
 
     def _extract_relevant_keywords_from_text(self, text: str, current_keywords: List[str]) -> List[str]:
-        """Extract, clean, and normalize relevant keywords from text"""
         try:
             response = self.client.chat.completions.create(
                 model=self.config.openai_model,
                 messages=[
-                    {"role": "system", "content": f"""You are an AI that extracts relevant keywords from news articles.
-
-Here are the current user preferences as examples. The keywords do not need to match these preferences exactly, but should be relevant to the article summary:
-{", ".join(current_keywords)}
-
-Extract 3-8 relevant keywords from the article summary. Focus on:
-- Main topics/themes
-- Content types
-- Subject areas
-- Key concepts
-
-Return only the keywords as a comma-separated list, no explanations."""},
+                    {"role": "system", "content": KEYWORD_EXTRACTION_PROMPT.format(current_keywords=", ".join(current_keywords))},
                     {"role": "user", "content": f"Extract keywords from this article summary: {text}"}
                 ],
                 max_tokens=100,
@@ -214,7 +237,6 @@ Return only the keywords as a comma-separated list, no explanations."""},
             return []
 
     def _find_preferences_with_similar_embeddings(self, current_preferences: PreferencesWithEmbeddings, article_embedding: List[float]) -> Dict:
-        """Find existing preferences that are semantically similar to the article"""
         similar_preferences = {}
 
         for keyword, data in current_preferences.items():
@@ -230,7 +252,6 @@ Return only the keywords as a comma-separated list, no explanations."""},
         return similar_preferences
 
     def _update_preferences_based_on_embeddings_and_keywords(self, current_preferences: PreferencesWithEmbeddings, similar_preferences: Dict, extracted_keywords: List[str], rating: int) -> PreferencesWithEmbeddings:
-        """Update preferences based on article similarity and extracted keywords"""
         updated_prefs = current_preferences.copy()
         updated_preference_keys = set()
 
@@ -284,7 +305,6 @@ Return only the keywords as a comma-separated list, no explanations."""},
             return 0  # Neutral score (no preference)
 
     def _handle_existing_keyword_update(self, updated_prefs: PreferencesWithEmbeddings, current_prefs: PreferencesWithEmbeddings, updated_preference_keys: set, keyword: str, rating: int) -> None:
-        """Handle updating an existing keyword preference"""
         # Check for semantic similarity first
         keyword_updated = self._update_similar_preferences_via_keyword(
             updated_prefs, current_prefs, updated_preference_keys, keyword, rating
@@ -295,7 +315,6 @@ Return only the keywords as a comma-separated list, no explanations."""},
             self._update_keyword_score(updated_prefs, keyword, rating)
 
     def _update_similar_preferences_via_keyword(self, updated_prefs: PreferencesWithEmbeddings, current_prefs: PreferencesWithEmbeddings, updated_preference_keys: set, keyword: str, rating: int) -> bool:
-        """Update preferences that are similar to the given keyword"""
         if not isinstance(current_prefs[keyword], dict) or "embedding" not in current_prefs[keyword]:
             return False
 
@@ -366,7 +385,6 @@ Return only the keywords as a comma-separated list, no explanations."""},
         self.logger.debug(f"  Updated exact match preference '{keyword}' from {current_score} to {new_score}")
 
     def _calculate_new_score(self, current_score: int, rating: int, similarity: float) -> int:
-        """Calculate new preference score based on rating and similarity"""
         if rating == 3:
             boost = 1 if similarity > 0.7 else 0.5
             return min(5, current_score + boost)
