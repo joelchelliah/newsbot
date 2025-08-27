@@ -1,6 +1,7 @@
 from email.message import EmailMessage
 import smtplib
 import textwrap
+import requests
 from logger import get_logger
 from typing import Dict, Optional
 from config import Config
@@ -17,6 +18,9 @@ class EmailService:
 
         self._send(subject, body, body_html)
         self.logger.info("📧   News email sent successfully!")
+
+        # Send push notification
+        self._send_push_notification(article['title'])
 
     def _create_body(self, article: Dict, summary: str) -> str:
         return textwrap.dedent(f"""
@@ -104,3 +108,35 @@ class EmailService:
         with smtplib.SMTP_SSL(self.config.smtp_server, self.config.smtp_port) as smtp:
             smtp.login(self.config.from_email, self.config.smtp_password)
             smtp.send_message(msg)
+
+    def _send_push_notification(self, article_title: str) -> None:
+        """Send push notification via ntfy.sh"""
+        try:
+            ntfy_topic = getattr(self.config, 'ntfy_topic', None)
+            if not ntfy_topic:
+                self.logger.warning("⚠️  NTFY_TOPIC not configured, skipping push notification")
+                return
+
+            headers = {
+                "Title": "NewsBot - Today's Article",
+                "Tags": "newspaper,news",
+                "Priority": "3",
+                "Actions": "view, Open Gmail, googlegmail://, clear=true",
+                "Content-Type": "text/plain; charset=utf-8"
+            }
+
+            response = requests.post(
+                f"https://ntfy.sh/{ntfy_topic}",
+                data=article_title.encode('utf-8'),
+                headers=headers,
+                timeout=10
+            )
+
+            if response.status_code == 200:
+                self.logger.info("📱  Push notification sent successfully!")
+            else:
+                self.logger.warning(f"⚠️  Push notification failed: HTTP {response.status_code}")
+
+        except Exception as e:
+            # Don't let push notification failures break email sending
+            self.logger.error(f"❌  Failed to send push notification: {e}")

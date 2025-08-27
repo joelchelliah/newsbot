@@ -56,6 +56,7 @@ python3 run_tests.py
 - `NEWS_API_KEY`: NewsAPI.org access
 - `FROM_EMAIL`, `TO_EMAIL`, `SMTP_PASS`: Gmail SMTP configuration
 - `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`: Supabase database access
+- `NTFY_TOPIC`: ntfy.sh topic name for push notifications (optional)
 - `NEWSBOT_DEFAULT_PREFERENCES`: Initial preferences JSON (optional)
 
 ### API Endpoints

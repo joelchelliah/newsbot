@@ -17,6 +17,7 @@ class Config:
     domain: str = os.getenv("NEWSBOT_DOMAIN", "")
     supabase_url: str = os.getenv("SUPABASE_URL", "")
     supabase_key: str = os.getenv("SUPABASE_SERVICE_KEY", "")
+    ntfy_topic: str = os.getenv("NTFY_TOPIC", "")
 
     def validate(self) -> bool:
         required_fields = [
