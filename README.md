@@ -1,18 +1,24 @@
 # 📰 NewsBot
 
-An AI-powered news assistant that automatically finds, summarizes, and emails you the most relevant news article from the last 24 hours.
+An AI-powered news assistant to find, summarize, and deliver you the most relevant news article from the last 24 hours!
 
-Deployed to [render.com](https://dashboard.render.com/), and triggered daily via a GH Action.
+🤖 Deployed to [render.com](https://dashboard.render.com/), and triggered daily via a GH Action.
+
+**Features:**
+- 📰 **Mobile-responsive page** summarizing the article
+- 📱 **Push notifications** via ntfy.sh with link to article
+- ⚡ **Rating system** to provide feedback for finding future article
+- 🧠 **Preferences with embeddings** to learn and keep track of preferred topics.
+
 
 ---
 
 ### 🎯 Preference System
 
-NewsBot uses an **AI-powered preference system** with semantic embeddings and scoring (-5 to 5) to learn your interests:
+Uses an AI-powered preference system with semantic embeddings and scoring (-5 to 5) to learn your interests. The semantic embeddings are used to understand content similarity.
 
 - **Positive scores (1-5)**: Topics you like
 - **Negative scores (-1 to -5)**: Topics you dislike
-- **Zero score (0)**: Neutral topics
 
 **Example preferences:**
 ```json
@@ -38,23 +44,11 @@ NewsBot uses an **AI-powered preference system** with semantic embeddings and sc
 
 #### ⭐ Rating System
 
-Rate articles via email links using a **3-star system**:
-- **🤩 3 stars**: Like the article
-- **😐 2 stars**: Neutral/indifferent
-- **🤢 1 star**: Dislike the article
+Rate articles directly in the **web interface** using interactive buttons:
+- **🤩 Like (3 stars)**: Boost similar topics in your preferences
+- **😐 Neutral (2 stars)**: No preference change, but tracks the new keywords
+- **😡 Dislike (1 star)**: Reduce similar topics in your preferences
 
-#### 🧠 How it learns
-
-The system uses **semantic embeddings** to understand content similarity:
-
-1. **Rate articles** via email links (1-3 stars)
-2. **AI extracts keywords** from article content
-3. **Updates preferences** based on your rating:
-   - **3 stars**: Boosts similar topics (+1 to +4 score)
-   - **2 stars**: No change (neutral)
-   - **1 star**: Reduces similar topics (-1 to -4 score)
-4. **Semantic matching** finds similar existing preferences
-5. **Future selection** uses these learned preferences
 
 ------
 
@@ -70,16 +64,22 @@ The system uses **semantic embeddings** to understand content similarity:
    ```
 
 2. **Create `.env` file with**:
-   ```bash
-   OPENAI_API_KEY=your_openai_api_key
-   NEWS_API_KEY=your_news_api_key
-   FROM_EMAIL=your_email@gmail.com
-   TO_EMAIL=recipient@example.com
-   SMTP_PASS=your_gmail_app_password
-   SUPABASE_URL=your_supabase_url
-   SUPABASE_SERVICE_KEY=your_supabase_key
-   NEWSBOT_DEFAULT_PREFERENCES=
-   ```
+  ```bash
+  # Required
+  OPENAI_API_KEY= # your_openai_api_key
+  NEWS_API_KEY= # your_news_api_key
+  SUPABASE_URL= # your_supabase_url
+  SUPABASE_SERVICE_KEY= # your_supabase_key
+  NEWSBOT_DOMAIN=# Your domain for web article links
+
+  # Optional
+  NTFY_TOPIC= # For push notifications via ntfy.sh
+  NEWSBOT_EMAIL_ENABLED= # email notification
+  FROM_EMAIL= # Only needed if email enabled
+  TO_EMAIL= # Only needed if email enabled
+  SMTP_PASS= # Only needed if email enabled
+  NEWSBOT_DEFAULT_PREFERENCES= # JSON string of initial preferences
+  ```
 
 3. **Start server**:
    ```bash
@@ -91,4 +91,7 @@ The system uses **semantic embeddings** to understand content similarity:
    curl -X POST http://localhost:3000/trigger
    ```
 
-📰 ✨ 📰 ✨ 📰 ✨ 📰 ✨ 📰 ✨ �� ✨ 📰 ✨ 📰 ✨ 📰 ✨
+
+---
+
+🎯 **Happy reading!** 📰✨
