@@ -98,6 +98,23 @@
             text-decoration: none;
             font-weight: 500;
         }
+        .rated-state {
+            text-align: center;
+            padding: 20px;
+            background: #f0f8ff;
+            border-radius: 10px;
+            border: 2px solid #3498db;
+        }
+        .rated-emoji {
+            font-size: 3rem;
+            margin: 20px 0;
+            animation: bounce 0.6s ease-in-out;
+        }
+        @keyframes bounce {
+            0%, 20%, 60%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+            80% { transform: translateY(-5px); }
+        }
     </style>
 </head>
 <body>
@@ -134,10 +151,14 @@
 
     <script>
         function submitRating(rating) {
-            // Disable buttons during request
+            if (localStorage.getItem('rated_{{article_id}}')) {
+                alert('⚠️ You have already rated this article!');
+                return;
+            }
+
             const buttons = document.querySelectorAll('.rating-btn');
             buttons.forEach(btn => btn.disabled = true);
-            
+
             fetch('/article/{{article_id}}/rate/' + rating, {
                 method: 'POST',
                 headers: {
@@ -147,19 +168,42 @@
             .then(response => response.json())
             .then(data => {
                 if (data.status === 'success') {
-                    alert('✅ ' + data.message);
+                    localStorage.setItem('rated_{{article_id}}', rating);
+
+                    showRatedState(rating);
                 } else {
                     alert('❌ Error: ' + data.message);
+                    buttons.forEach(btn => btn.disabled = false);
                 }
             })
             .catch(error => {
                 alert('❌ Error submitting rating: ' + error.message);
-            })
-            .finally(() => {
-                // Re-enable buttons
                 buttons.forEach(btn => btn.disabled = false);
             });
         }
+
+        function showRatedState(rating) {
+            const ratingSection = document.querySelector('.rating-section');
+            const ratingEmojis = ['', '😡', '😐', '🤩'];
+
+            ratingSection.innerHTML = `
+                <div class="rated-state">
+                    <div class="rated-emoji">
+                        ${ratingEmojis[rating]}
+                    </div>
+                    <p style="color: #666; font-weight: 500;">You rated this article ${rating} star(s)</p>
+                    <p style="color: #666; font-size: 0.9rem;">Your preferences will be updated.</p>
+                </div>
+            `;
+        }
+
+        // Check if already rated on page load
+        window.addEventListener('DOMContentLoaded', function() {
+            const existingRating = localStorage.getItem('rated_{{article_id}}');
+            if (existingRating) {
+                showRatedState(parseInt(existingRating));
+            }
+        });
     </script>
 </body>
 </html>

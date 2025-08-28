@@ -138,7 +138,11 @@ def submit_article_rating(article_id: str, rating: int) -> Union[Response, Tuple
 
         threading.Thread(target=update_preferences_async, daemon=True).start()
 
-        return jsonify({"status": "success", "message": f"Rated {rating} star(s)! Preferences will be updated."})
+        return jsonify({
+            "status": "success", 
+            "message": f"Rated {rating} star(s)! Preferences will be updated.",
+            "rating": rating
+        })
 
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500

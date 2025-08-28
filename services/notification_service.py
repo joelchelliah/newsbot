@@ -72,11 +72,9 @@ class NotificationService:
                 "Content-Type": "text/plain; charset=utf-8"
             }
 
-            message = f"{article_title}\n\nTap 'Open Article' to read the full story and rate your preferences!" if article_id else article_title
-
             response = requests.post(
                 f"https://ntfy.sh/{ntfy_topic}",
-                data=message.encode('utf-8'),
+                data=article_title.encode('utf-8'),
                 headers=headers,
                 timeout=10
             )
