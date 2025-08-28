@@ -1,7 +1,6 @@
 import openai
 import json
 import numpy as np
-from newspaper import Article
 from config import Config
 from logger import get_logger
 from _types import PreferencesWithEmbeddings
@@ -71,16 +70,16 @@ class AIService:
         )
         return self._parse_response(response, "generate_subject_line")
 
-    def summarize_article(self, url: str) -> str:
-        article = Article(url)
-        article.download()
-        article.parse()
+    def summarize_article(self, article_content: str) -> str:
+        if not article_content:
+            self.logger.warning("❌  No content to summarize")
+            return ""
 
         response = self.client.chat.completions.create(
             model=self.config.openai_model,
             messages=[
                 {"role": "system", "content": ARTICLE_SUMMARY_PROMPT},
-                {"role": "user", "content": article.text}
+                {"role": "user", "content": article_content}
             ],
             max_tokens=400,
             temperature=0.3,

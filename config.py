@@ -18,15 +18,23 @@ class Config:
     supabase_url: str = os.getenv("SUPABASE_URL", "")
     supabase_key: str = os.getenv("SUPABASE_SERVICE_KEY", "")
     ntfy_topic: str = os.getenv("NTFY_TOPIC", "")
+    email_enabled: bool = os.getenv("NEWSBOT_EMAIL_ENABLED", "true").lower() == "true"
 
     def validate(self) -> bool:
+        # Always required fields
         required_fields = [
             self.openai_api_key,
             self.news_api_key,
-            self.smtp_password,
-            self.from_email,
-            self.to_email,
             self.supabase_url,
             self.supabase_key,
         ]
+        
+        # Email fields only required if email is enabled
+        if self.email_enabled:
+            required_fields.extend([
+                self.smtp_password,
+                self.from_email,
+                self.to_email,
+            ])
+            
         return all(field for field in required_fields)
