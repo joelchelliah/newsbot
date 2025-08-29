@@ -45,7 +45,6 @@ def trigger_newsbot() -> Union[Response, Tuple[Response, int]]:
 
             article_data = extract_article_content(article['url'])
             if not article_data:
-                logger.error("❌  Failed to extract article content")
                 return jsonify({"status": "error", "message": "Failed to extract article content"}), 500
 
             summary = ai_service.summarize_article(article_data['content'])
@@ -139,7 +138,7 @@ def submit_article_rating(article_id: str, rating: int) -> Union[Response, Tuple
         threading.Thread(target=update_preferences_async, daemon=True).start()
 
         return jsonify({
-            "status": "success", 
+            "status": "success",
             "message": f"Rated {rating} star(s)! Preferences will be updated.",
             "rating": rating
         })
