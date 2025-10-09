@@ -1,9 +1,9 @@
 name: Trigger NewsBot
 
 on:
-  schedule:
-    # 8 AM Norway (summer time)
-    - cron: '0 6 * * *'
+  # schedule:
+  #   # 8 AM Norway (summer time)
+  #   - cron: '0 6 * * *'
   workflow_dispatch: # Allows manual trigger
 
 jobs:

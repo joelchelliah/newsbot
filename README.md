@@ -1,5 +1,12 @@
 # 📰 NewsBot
 
+-------
+
+## ❌ **DISABLED** ❌
+> All actions have been disabled and render.com deployment has been suspended!
+
+-------
+
 An AI-powered news assistant to find, summarize, and deliver you the most relevant news article from the last 24 hours!
 
 🤖 Deployed to [render.com](https://dashboard.render.com/), and triggered daily via a GH Action.
